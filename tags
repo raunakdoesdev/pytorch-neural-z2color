@@ -8,7 +8,9 @@ N_FRAMES	train.py	/^N_FRAMES = 2 # how many timesteps with images.$/;"	v
 N_STEPS	train.py	/^N_STEPS = 10 # how many timestamps with non-image data$/;"	v
 ProgressBar	utils.py	/^class ProgressBar:$/;"	c
 Segment_Data	import_utils.py	/^Segment_Data = {}$/;"	v
+SimpleNet	nets/simple_net.py	/^class SimpleNet(nn.Module):$/;"	c
 Timer	utils.py	/^class Timer:$/;"	c
+__init__	nets/simple_net.py	/^    def __init__(self):$/;"	m	class:SimpleNet
 __init__	utils.py	/^    def __init__(self, iterations):$/;"	m	class:ProgressBar
 __init__	utils.py	/^    def __init__(self, time_s):$/;"	m	class:Timer
 __str__	utils.py	/^    def __str__(self):$/;"	m	class:ProgressBar	file:
@@ -17,6 +19,7 @@ animate	utils.py	/^    def animate(self, iter):$/;"	m	class:ProgressBar
 check	utils.py	/^    def check(self):$/;"	m	class:Timer
 choice	train.py	/^        choice = high_steer[ctr_high]$/;"	v
 choice	train.py	/^        choice = low_steer[ctr_low]$/;"	v
+criterion	train.py	/^criterion = nn.MSELoss()  # define loss function$/;"	v
 ctr	train.py	/^ctr = 0$/;"	v
 ctr_high	train.py	/^        ctr_high = -1$/;"	v
 ctr_high	train.py	/^        ctr_high = 0$/;"	v
@@ -26,6 +29,7 @@ ctr_low	train.py	/^        ctr_low = 0$/;"	v
 ctr_low	train.py	/^ctr_low = -1$/;"	v
 data	train.py	/^    data = get_data(run_code,seg_num,offset,N_STEPS,offset+0,N_FRAMES,ignore=ignore,require_one=require_one)$/;"	v
 desktopDir	utils.py	/^def desktopDir(*args):$/;"	f
+forward	nets/simple_net.py	/^    def forward(self, x, metadata):$/;"	m	class:SimpleNet
 get_data	import_utils.py	/^def get_data(run_code_num,seg_num,offset,slen,img_offset,img_slen,ignore=[],require_one=[],smooth_steer=True):$/;"	f
 hdf5_runs_path	import_utils.py	/^hdf5_runs_path = desktopDir('bair_car_data\/hdf5\/runs')$/;"	v
 hdf5_segment_metadata_path	import_utils.py	/^hdf5_segment_metadata_path = desktopDir('bair_car_data\/hdf5\/segment_metadata')$/;"	v
@@ -43,7 +47,12 @@ load_run_data	import_utils.py	/^def load_run_data(run_code_num):$/;"	f
 loss	train.py	/^loss = []$/;"	v
 loss10000	train.py	/^loss10000 = []$/;"	v
 low_steer	train.py	/^low_steer = load_obj(join(hdf5_segment_metadata_path , 'low_steer'))$/;"	v
+net	train.py	/^net = SimpleNet()$/;"	v
+neural_input	train.py	/^                    neural_input = torch.cat((x, torch.from_numpy(data[camera][t][:,:,c])), 1)  # Adds channel$/;"	v
+neural_input	train.py	/^                    neural_input = torch.from_numpy(data[camera][t][:,:,c]) # Creates first channel$/;"	v
+neural_input	train.py	/^    neural_input = None$/;"	v
 offset	train.py	/^    offset = choice[1]$/;"	v
+optimizer	train.py	/^optimizer = torch.optim.SGD(net.parameters(), lr=0.005, momentum=0.0001)$/;"	v
 pb	train.py	/^pb = ProgressBar(1 + len(Segment_Data['run_codes']))$/;"	v
 print_timer	train.py	/^print_timer = Timer(5)$/;"	v
 rate_ctr	train.py	/^rate_ctr = 0$/;"	v

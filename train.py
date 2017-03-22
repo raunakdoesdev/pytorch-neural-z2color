@@ -1,31 +1,63 @@
 from __future__ import print_function
+from nets.simple_net import SimpleNet
 from import_utils import *
+import torch
+from torch.autograd import Variable
+import torch.nn as nn
+import torch.nn.functional as F
 import numpy.random as random
+import shelve
+import sys
 
-# Loading Run Codes
-print('Loading run codes...')
-load_run_codes()
-print('Done loading run codes!')
 
-# Load run data
+filename='/home/schowdhuri/working-directory/pytorch_neural/tmp/shelve.out'
 
-print('Loading run data...')
-pb = ProgressBar(1 + len(Segment_Data['run_codes']))
-ctr = 0
-for n in Segment_Data['run_codes'].keys():
-	ctr+=1
-	pb.animate(ctr)
-	load_run_data(n)
-pb.animate(len(Segment_Data['run_codes']))
-print('\nFinished loading run data!')
+print('Getting Shelved Data')
+my_shelf = shelve.open(filename)
+if len(my_shelf) == 0 or 'reshelve' in sys.argv:
+    print('Loading run codes...')
+    load_run_codes()
+    print('Done loading run codes!')
+    
+    # Load run data
+    
+    print('Loading run data...')
+    pb = ProgressBar(1 + len(Segment_Data['run_codes']))
+    ctr = 0
+    for n in Segment_Data['run_codes'].keys():
+    	ctr+=1
+    	pb.animate(ctr)
+    	load_run_data(n)
+    pb.animate(len(Segment_Data['run_codes']))
+    print('\nFinished loading run data!')
+    
+    # Load steering parameters
+    print('Loading low_steer... (takes awhile)')
+    low_steer = load_obj(join(hdf5_segment_metadata_path , 'low_steer'))
+    
+    print('Loading high steer... (takes awhile)')
+    high_steer  = load_obj(join(hdf5_segment_metadata_path , 'high_steer'))
+    print('Finished high steer data!')
+    
+    my_shelf = shelve.open(filename,'n') # 'n' for new
+    
+    my_shelf['low_steer'] = low_steer
+    my_shelf['high_steer'] = high_steer
+    my_shelf['Segment_Data'] = Segment_Data
+    
+    my_shelf.close()
+else:
+    shelfbar = ProgressBar(len(my_shelf))
+    shelfctr = 0
+    for key in my_shelf:
+        
+        low_steer = my_shelf['low_steer']
+        high_steer = my_shelf['high_steer']
+        Segment_Data = my_shelf['Segment_Data']
 
-# Load steering parameters
-print('Loading low_steer... (takes awhile)')
-low_steer = load_obj(join(hdf5_segment_metadata_path , 'low_steer'))
-
-print('Loading high steer... (takes awhile)')
-high_steer  = load_obj(join(hdf5_segment_metadata_path , 'high_steer'))
-print('Finished high steer data!')
+        shelfbar.animate(shelfctr)
+        shelfctr+=1
+    my_shelf.close()
 
 # Update counters and initialize lens to maintain position in segment lists and when to reshuffle.
 len_high_steer = len(high_steer)
@@ -44,6 +76,14 @@ rate_timer_interval = 10.
 rate_timer = Timer(rate_timer_interval)
 rate_ctr = 0
 
+# Initialize Neural Net
+print('Nerual net structure:')
+net = SimpleNet()
+print (net)
+criterion = nn.MSELoss()  # define loss function
+optimizer = torch.optim.SGD(net.parameters(), lr=0.005, momentum=0.0001)
+
+print('Beginning Training...')
 while True:
     if ctr_low >= len_low_steer:
         ctr_low = -1
@@ -62,12 +102,24 @@ while True:
     else:
         choice = high_steer[ctr_high]
         ctr_high += 1
+
     run_code = choice[3]
     seg_num = choice[0]
     offset = choice[1]
     data = get_data(run_code,seg_num,offset,N_STEPS,offset+0,N_FRAMES,ignore=ignore,require_one=require_one)
-    if data == None:
+
+    if data == None: # if an ignore flag was found in the data, skip
         continue
 
+    neural_input = None
+    for c in range(3):
+        for camera in ('left','right'):
+            for t in range(N_FRAMES):
+                if neural_input is None:
+                    neural_input = torch.from_numpy(data[camera][t][:,:,c]) # Creates first channel
+                else:
+                    neural_input = torch.cat((neural_input,
+                        torch.from_numpy(data[camera][t][:,:,c])), 1)  # Adds channel
 
-
+    print(neural_input)
+    break
