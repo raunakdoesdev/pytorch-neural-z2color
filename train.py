@@ -14,22 +14,24 @@ filename='/home/schowdhuri/working-directory/pytorch_neural/tmp/shelve.out'
 
 print('Getting Shelved Data')
 my_shelf = shelve.open(filename)
+
+print('Loading run codes...')
+load_run_codes()
+print('Done loading run codes!')
+
+# Load run data
+
+print('Loading run data...')
+pb = ProgressBar(1 + len(Segment_Data['run_codes']))
+ctr = 0
+for n in Segment_Data['run_codes'].keys():
+	ctr+=1
+	pb.animate(ctr)
+	load_run_data(n)
+pb.animate(len(Segment_Data['run_codes']))
+print('\nFinished loading run data!')
+
 if len(my_shelf) == 0 or 'reshelve' in sys.argv:
-    print('Loading run codes...')
-    load_run_codes()
-    print('Done loading run codes!')
-    
-    # Load run data
-    
-    print('Loading run data...')
-    pb = ProgressBar(1 + len(Segment_Data['run_codes']))
-    ctr = 0
-    for n in Segment_Data['run_codes'].keys():
-    	ctr+=1
-    	pb.animate(ctr)
-    	load_run_data(n)
-    pb.animate(len(Segment_Data['run_codes']))
-    print('\nFinished loading run data!')
     
     # Load steering parameters
     print('Loading low_steer... (takes awhile)')
@@ -43,20 +45,18 @@ if len(my_shelf) == 0 or 'reshelve' in sys.argv:
     
     my_shelf['low_steer'] = low_steer
     my_shelf['high_steer'] = high_steer
-    my_shelf['Segment_Data'] = Segment_Data
     
     my_shelf.close()
 else:
-    shelfbar = ProgressBar(len(my_shelf))
-    shelfctr = 0
+    print('Loading shelved steer_data: ')
+    shelfbar = ProgressBar(2)
+    shelfbar.animate(0)
     for key in my_shelf:
         
         low_steer = my_shelf['low_steer']
+        shelfbar.animate(1)
         high_steer = my_shelf['high_steer']
-        Segment_Data = my_shelf['Segment_Data']
-
-        shelfbar.animate(shelfctr)
-        shelfctr+=1
+        shelfbar.animate(2)
     my_shelf.close()
 
 # Update counters and initialize lens to maintain position in segment lists and when to reshuffle.
@@ -119,7 +119,10 @@ while True:
                     neural_input = torch.from_numpy(data[camera][t][:,:,c]) # Creates first channel
                 else:
                     neural_input = torch.cat((neural_input,
-                        torch.from_numpy(data[camera][t][:,:,c])), 1)  # Adds channel
+                        torch.from_numpy(data[camera][t][:,:,c])), 2)  # Adds channel
 
+    neural_input = torch.transpose(neural_input,0,2)
+    neural_input = torch.transpose(neural_input,1,2)
     print(neural_input)
+
     break
