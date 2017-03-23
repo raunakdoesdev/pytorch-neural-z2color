@@ -30,7 +30,8 @@ class SimpleNet(nn.Module):
 
     def forward(self, x, metadata):
         x = self.conv1_pool_drop(self.conv1_pool(F.relu(self.conv1(x))))  # conv1
-        x = Variable(torch.cat((x, metadata), 1))  # Adds metadata
+        print ('This is the tensor after conv1:')
+        print(x)
         x = self.conv2_pool_drop(self.conv2_pool(F.relu(self.conv2(x))))  # conv2
 
         x = self.ip1_drop(F.relu(self.ip1(x)))
