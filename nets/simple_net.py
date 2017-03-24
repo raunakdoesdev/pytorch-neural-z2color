@@ -16,8 +16,7 @@ class SimpleNet(nn.Module):
         self.conv2 = nn.Conv2d(in_channels=102, out_channels=256, kernel_size=3, stride=2, groups=2)
         self.conv2_pool = nn.MaxPool2d(kernel_size=3, stride=2)
         self.conv2_pool_drop = nn.Dropout2d(p=0.0)
-
-        self.ip1 = nn.Linear(in_features=256, out_features=512)
+        self.ip1 = nn.Linear(in_features=2560, out_features=512)
         self.ip1_drop = nn.Dropout(p=0.0)
         self.ip2 = nn.Linear(in_features=512, out_features=20)
 
@@ -34,15 +33,16 @@ class SimpleNet(nn.Module):
         x = F.relu(x)
         x = self.conv1_pool(x)
         x = self.conv1_pool_drop(x)
-        
+        x = torch.cat((metadata, x), 1)
         x = self.conv2_pool_drop(self.conv2_pool(F.relu(self.conv2(x))))  # conv2
-
+        x = x.view(-1, 2560)
         x = self.ip1_drop(F.relu(self.ip1(x)))
         x = self.ip2(x)
         return x
 
 def unit_test():
     test_net = SimpleNet()
-    a = test_net( Variable(torch.randn(5, 12, 94, 128)), Variable(torch.randn(1, 6, 13, 26)) )
+    a = test_net( Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 6, 13, 26)) )
+    # print (a)
 
-# unit_test()
+unit_test()

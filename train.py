@@ -12,7 +12,7 @@ import sys
 
 tab_count = 0
 batch_size = 5 # Mini batch size
-print_rate = 1000 # Print every 1000 mini-batches
+print_rate = 2 # Print every 1000 mini-batches
 num_training_sets = 10000 # Number of mini-batches
 
 def run_job( fun, job_title): # Simply runs function and prints out data regarding it
@@ -38,9 +38,9 @@ def get_camera_data():
    
 def get_metadata():
     global metaData
-    metaData = torch.Tensor()
-    zero_matrix = torch.Tensor(1, 14,26).zero_() # Min value matrix
-    one_matrix = torch.Tensor(1, 14,26).fill_(1) # Max value matrix
+    metaData = torch.DoubleTensor()
+    zero_matrix = torch.DoubleTensor(1, 13,26).zero_() # Min value matrix
+    one_matrix = torch.DoubleTensor(1, 13,26).fill_(1) # Max value matrix
     
     for cur_label in ['racing','caffe','follow','direct', 'play', 'furtive']:
         if cur_label == 'caffe':
@@ -57,16 +57,18 @@ def get_metadata():
 def train():
     running_loss = 0.0
     total_runs = 0
+    i = 0
     for batch_epoch in range(num_training_sets/batch_size):
-        batch_metadata = torch.Tensor()
+        batch_metadata = torch.DoubleTensor()
         batch_input = torch.DoubleTensor()
         batch_labels = torch.DoubleTensor()
+        
 
         for batch in range(batch_size): # Construct batch
             run_job(pick_data, 'datapoint extraction')
-            if data == None: # if an ignore flag was found in the data, skip
-                print ('Skipping datapoint due to ignore flag')
-                continue
+
+            while data == None: # Iterate until valid datapoint is picked
+                run_job(pick_data, 'datapoint extraction')
 
             run_job(get_camera_data, "camera data extraction")
             run_job(get_metadata, "metadata extraction")
@@ -78,24 +80,23 @@ def train():
             labels = torch.cat((motor, labels), 0)
             
             # Creates batch
-            print(torch.unsqueeze(labels, 0))
             batch_input = torch.cat((torch.unsqueeze(neural_input ,0), batch_input), 0)
             batch_metadata = torch.cat((torch.unsqueeze(metaData, 0), batch_metadata), 0)
             batch_labels = torch.cat((torch.unsqueeze(labels, 0), batch_labels), 0)
             total_runs += 1
 
         # Train and Backpropagate on Batch Data
-        outputs = net(Variable(batch_input), Variable(batch_metadata))
-        loss = criterion(outputs, Variable(batch_labels)) # TODO: DEFINE LABELS
+        outputs = net(Variable(batch_input.float()), Variable(batch_metadata.float()))
+        loss = criterion(outputs, Variable(batch_labels.float())) # TODO: DEFINE LABELS
         loss.backward()
         optimizer.step()
 
         running_loss += loss.data[0]
-
         if i % print_rate  == print_rate - 1: # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' % (batch_epoch + 1, total_runs + 1, 
                 running_loss / print_rate))
             running_loss = 0.0
+        i += 1
 
 
 def load_run_data_progress():
