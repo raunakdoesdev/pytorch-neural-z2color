@@ -9,6 +9,7 @@ import numpy.random as random
 import shelve
 import sys
 
+
 tab_count = 0
 batch_size = 5 # Mini batch size
 print_rate = 1000 # Print every 1000 mini-batches
@@ -24,35 +25,42 @@ def run_job( fun, job_title): # Simply runs function and prints out data regardi
 
 def get_camera_data():
     global neural_input
-    neural_input = torch.ByteTensor()
+    neural_input = torch.DoubleTensor()
     for c in range(3):
         for camera in ('left','right'):
             for t in range(N_FRAMES):
-                neural_input = torch.cat((neural_input, 
-                    torch.from_numpy(data[camera][t][:,:,c])), 2)  # Adds channel
+                raw_input_data = torch.from_numpy(data[camera][t][:,:,c] / 255.)
+                neural_input = torch.cat((neural_input, raw_input_data), 2)  # Adds channel
 
     # Switch dimensions to match neural net
     neural_input = torch.transpose(neural_input,0,2)
     neural_input = torch.transpose(neural_input,1,2)
-    
+   
 def get_metadata():
     global metaData
-    metaData = torch.ByteTensor()
-    zero_matrix = torch.ByteTensor(1, 14,26).zero_() # Min value matrix
-    one_matrix = torch.ByteTensor(1, 14,26).fill_(255) # Max value matrix
+    metaData = torch.Tensor()
+    zero_matrix = torch.Tensor(1, 14,26).zero_() # Min value matrix
+    one_matrix = torch.Tensor(1, 14,26).fill_(1) # Max value matrix
     
-    for cur_label in ['racing',0,'follow','direct', 'play', 'furtive']:
-        if data['labels'][cur_label]:
-            metaData = torch.cat((one_matrix, metaData), 0)
+    for cur_label in ['racing','caffe','follow','direct', 'play', 'furtive']:
+        if cur_label == 'caffe':
+            if data['states'][0]:
+                metaData = torch.cat((one_matrix, metaData), 0)
+            else:
+                metaData = torch.cat((zero_matrix, metaData), 0)
         else:
-            metaData = torch.cat((zero_matrix, metaData), 0)
+            if data['labels'][cur_label]:
+                metaData = torch.cat((one_matrix, metaData), 0)
+            else:
+                metaData = torch.cat((zero_matrix, metaData), 0)
 
 def train():
     running_loss = 0.0
     total_runs = 0
     for batch_epoch in range(num_training_sets/batch_size):
-        batch_metadata = torch.ByteTensor()
-        batch_input = torch.ByteTensor()
+        batch_metadata = torch.Tensor()
+        batch_input = torch.DoubleTensor()
+        batch_labels = torch.DoubleTensor()
 
         for batch in range(batch_size): # Construct batch
             run_job(pick_data, 'datapoint extraction')
@@ -63,15 +71,22 @@ def train():
             run_job(get_camera_data, "camera data extraction")
             run_job(get_metadata, "metadata extraction")
 
+            labels = torch.DoubleTensor()
+            steer = torch.from_numpy(data['steer'][-N_STEPS:]/99.)
+            motor = torch.from_numpy(data['motor'][-N_STEPS:]/99.)
+            labels = torch.cat((steer, labels), 0)
+            labels = torch.cat((motor, labels), 0)
+            
             # Creates batch
-            batch_input = torch.cat((torch.unsqueeze(neural_input,0), batch_input), 0)
+            print(torch.unsqueeze(labels, 0))
+            batch_input = torch.cat((torch.unsqueeze(neural_input ,0), batch_input), 0)
             batch_metadata = torch.cat((torch.unsqueeze(metaData, 0), batch_metadata), 0)
-
+            batch_labels = torch.cat((torch.unsqueeze(labels, 0), batch_labels), 0)
             total_runs += 1
 
         # Train and Backpropagate on Batch Data
-        outputs = net(Variable(neural_input), Variable(metaData))
-        loss = criterion(outputs, labels) # TODO: DEFINE LABELS
+        outputs = net(Variable(batch_input), Variable(batch_metadata))
+        loss = criterion(outputs, Variable(batch_labels)) # TODO: DEFINE LABELS
         loss.backward()
         optimizer.step()
 
@@ -91,12 +106,18 @@ def load_run_data_progress():
     	pb.animate(ctr)
     	load_run_data(n)
     pb.animate(len(Segment_Data['run_codes']))
+    print()
 
 def load_steer_data():
     global len_high_steer, len_low_steer, low_steer, high_steer
+    reload_data = False
+    
     filename='/home/schowdhuri/working-directory/pytorch_neural/tmp/shelve.out'
-    my_shelf = shelve.open(filename)
-    if len(my_shelf) == 0 or '-r' in sys.argv: # Load steer data from pickle and reshelve
+    try:
+        my_shelf = shelve.open(filename)
+    except:
+        reload_data = True
+    if reload_data or len(my_shelf) == 0 or '-r' in sys.argv: # Load steer data from pickle and reshelve
         shelfbar = ProgressBar(4)
         shelfbar.animate(0)
         low_steer = load_obj(join(hdf5_segment_metadata_path , 'low_steer'))
@@ -119,6 +140,7 @@ def load_steer_data():
         my_shelf.close()
     len_high_steer = len(high_steer)
     len_low_steer = len(low_steer)
+    print()
 
 def model_init_params():
     global ctr_low, ctr_high, N_FRAMES, N_STEPS, ignore, require_one, print_timer, loss10000, loss

@@ -29,12 +29,20 @@ class SimpleNet(nn.Module):
         nn.init.xavier_normal(self.ip2.weight)
 
     def forward(self, x, metadata):
-        x = self.conv1_pool_drop(self.conv1_pool(F.relu(self.conv1(x))))  # conv1
-        print ('This is the tensor after conv1:')
-        print(x)
+        # Conv1
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv1_pool(x)
+        x = self.conv1_pool_drop(x)
+        
         x = self.conv2_pool_drop(self.conv2_pool(F.relu(self.conv2(x))))  # conv2
 
         x = self.ip1_drop(F.relu(self.ip1(x)))
         x = self.ip2(x)
         return x
 
+def unit_test():
+    test_net = SimpleNet()
+    a = test_net( Variable(torch.randn(5, 12, 94, 128)), Variable(torch.randn(1, 6, 13, 26)) )
+
+# unit_test()
