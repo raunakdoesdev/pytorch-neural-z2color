@@ -8,20 +8,26 @@ import torch.nn.functional as F
 import numpy.random as random
 import shelve
 import sys
+import time
 
-
-tab_count = 0
+# Parameters
 batch_size = 5 # Mini batch size
-print_rate = 2 # Print every 1000 mini-batches
-num_training_sets = 10000 # Number of mini-batches
+print_rate = 1000 # Print every 1000 mini-batches (also the save rate)
+num_training_sets = 20000
+torch.cuda.device(0) # Cuda device ID
 
-def run_job( fun, job_title): # Simply runs function and prints out data regarding it
+# Var Initializations
+tab_count = 0
+
+def run_job( fun, job_title, debug=True): # Simply runs function and prints out data regarding it
     global tab_count
-    print(tab_count * '\t' + 'Starting ' + job_title + '...' )
-    tab_count += 1
+    if(debug):
+        print(tab_count * '\t' + 'Starting ' + job_title + '...' )
+        tab_count += 1
     fun()
-    tab_count -= 1
-    print(tab_count * '\t' + 'Finshed ' + job_title + '!' )
+    if(debug):
+        tab_count -= 1
+        print(tab_count * '\t' + 'Finshed ' + job_title + '!' )
 
 def get_camera_data():
     global neural_input
@@ -29,8 +35,8 @@ def get_camera_data():
     for c in range(3):
         for camera in ('left','right'):
             for t in range(N_FRAMES):
-                raw_input_data = torch.from_numpy(data[camera][t][:,:,c] / 255.)
-                neural_input = torch.cat((neural_input, raw_input_data), 2)  # Adds channel
+                raw_input_data = torch.from_numpy(data[camera][t][:,:,c]).double()
+                neural_input = torch.cat((neural_input, raw_input_data/255.), 2)  # Adds channel
 
     # Switch dimensions to match neural net
     neural_input = torch.transpose(neural_input,0,2)
@@ -58,6 +64,9 @@ def train():
     running_loss = 0.0
     total_runs = 0
     i = 0
+    # start_time = timer()
+    start_time = time.time()
+
     for batch_epoch in range(num_training_sets/batch_size):
         batch_metadata = torch.DoubleTensor()
         batch_input = torch.DoubleTensor()
@@ -65,17 +74,19 @@ def train():
         
 
         for batch in range(batch_size): # Construct batch
-            run_job(pick_data, 'datapoint extraction')
+            run_job(pick_data, 'datapoint extraction', debug=False)
 
             while data == None: # Iterate until valid datapoint is picked
-                run_job(pick_data, 'datapoint extraction')
+                run_job(pick_data, 'datapoint extraction', debug=False)
 
-            run_job(get_camera_data, "camera data extraction")
-            run_job(get_metadata, "metadata extraction")
+            run_job(get_camera_data, "camera data extraction", debug=False)
+            run_job(get_metadata, "metadata extraction", debug=False)
 
             labels = torch.DoubleTensor()
-            steer = torch.from_numpy(data['steer'][-N_STEPS:]/99.)
-            motor = torch.from_numpy(data['motor'][-N_STEPS:]/99.)
+            steer = torch.from_numpy(data['steer'][-N_STEPS:])
+            steer = steer / 99.
+            motor = torch.from_numpy(data['motor'][-N_STEPS:])
+            motor = motor / 99.
             labels = torch.cat((steer, labels), 0)
             labels = torch.cat((motor, labels), 0)
             
@@ -86,18 +97,21 @@ def train():
             total_runs += 1
 
         # Train and Backpropagate on Batch Data
-        outputs = net(Variable(batch_input.float()), Variable(batch_metadata.float()))
-        loss = criterion(outputs, Variable(batch_labels.float())) # TODO: DEFINE LABELS
+        outputs = net(Variable(batch_input.cuda().float()), Variable(batch_metadata.cuda().float()))
+        loss = criterion(outputs, Variable(batch_labels.cuda().float())) 
         loss.backward()
         optimizer.step()
 
         running_loss += loss.data[0]
         if i % print_rate  == print_rate - 1: # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.3f' % (batch_epoch + 1, total_runs + 1, 
+            print('[%d, %5d] loss: %.3f' % (batch_epoch + 1, total_runs, 
                 running_loss / print_rate))
             running_loss = 0.0
-        i += 1
+            print(' Clock speed (Datapoints / Seconds): ' + str(print_rate * batch_size/ (time.time() - start_time)))
+            start_time = time.time()
+            torch.save(net.state_dict(), 'save/simple_net')
 
+        i += 1
 
 def load_run_data_progress():
     pb = ProgressBar(1 + len(Segment_Data['run_codes']))
@@ -145,7 +159,6 @@ def load_steer_data():
 
 def model_init_params():
     global ctr_low, ctr_high, N_FRAMES, N_STEPS, ignore, require_one, print_timer, loss10000, loss
-    global rate_timer_interval, rate_timer, rate_ctr
 
     ctr_low = -1
     ctr_high = -1
@@ -154,27 +167,23 @@ def model_init_params():
     N_STEPS = 10 # how many timestamps with non-image data
     ignore=['reject_run','left','out1_in2'] # runs with these labels are ignored
     require_one=[] # at least one of this type of run lable is required
-    print_timer = Timer(5)
     loss10000 = []
     loss = []
-    rate_timer_interval = 10.
-    rate_timer = Timer(rate_timer_interval)
-    rate_ctr = 0
 
 def instantiate_net():
     global net, criterion, optimizer
     net = SimpleNet()
     criterion = nn.MSELoss()  # define loss function
     optimizer = torch.optim.SGD(net.parameters(), lr=0.005, momentum=0.0001)
+    net = net.cuda()
+    criterion = criterion.cuda()
 
 def print_net():
     print (net)
 
 def pick_data():
     global choice, run_code, seg_num, offset, data
-
     global ctr_low, ctr_high, N_FRAMES, N_STEPS, ignore, require_one, print_timer, loss10000, loss
-    global rate_timer_interval, rate_timer, rate_ctr
 
     if ctr_low >= len_low_steer:
         ctr_low = -1
