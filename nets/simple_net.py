@@ -28,16 +28,26 @@ class SimpleNet(nn.Module):
         nn.init.xavier_normal(self.ip2.weight)
 
     def forward(self, x, metadata):
-        # Conv1
+        # conv1
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv1_pool(x)
         x = self.conv1_pool_drop(x)
+
+        # metadata_concat
         x = torch.cat((metadata, x), 1)
-        x = self.conv2_pool_drop(self.conv2_pool(F.relu(self.conv2(x))))  # conv2
+
+        # conv2
+        x = self.conv2_pool_drop(self.conv2_pool(F.relu(self.conv2(x))))
+        
         x = x.view(-1, 2560)
+
+        # ip1
         x = self.ip1_drop(F.relu(self.ip1(x)))
+
+        # ip2
         x = self.ip2(x)
+        
         return x
 
 def unit_test():
