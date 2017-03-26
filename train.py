@@ -11,9 +11,9 @@ import sys
 import time
 
 # Parameters
-batch_size = 5 # Mini batch size
-print_rate = 1000 # Print every 1000 mini-batches (also the save rate)
-num_training_sets = 20000
+batch_size = 20 # Mini batch size
+print_rate = 2500 # Print every 1000 mini-batches (also the save rate)
+num_training_sets = 1000000
 torch.cuda.device(0) # Cuda device ID
 
 # Var Initializations
@@ -60,7 +60,55 @@ def get_metadata():
             else:
                 metaData = torch.cat((zero_matrix, metaData), 0)
 
+def validation(tenpercent=False):
+    global len_high_steer, len_low_steer
+    running_loss = 0.0
+    total_runs = 2000
+
+    if tenpercent:
+        total_runs = (len_high_steer / 10) + (len_low_steer / 10) # Print total runs
+
+    # start_time = timer()
+    start_time = time.time()
+
+    for batch_epoch in range(total_runs):
+        batch_metadata = torch.DoubleTensor()
+        batch_input = torch.DoubleTensor()
+        batch_labels = torch.DoubleTensor()
+        
+
+        run_job(pick_validation_data, 'datapoint extraction', debug=False)
+
+        while data == None: # Iterate until valid datapoint is picked
+            run_job(pick_data, 'datapoint extraction', debug=False)
+
+        run_job(get_camera_data, "camera data extraction", debug=False)
+        run_job(get_metadata, "metadata extraction", debug=False)
+
+        labels = torch.DoubleTensor()
+        steer = torch.from_numpy(data['steer'][-N_STEPS:])
+        steer = steer / 99.
+        motor = torch.from_numpy(data['motor'][-N_STEPS:])
+        motor = motor / 99.
+        labels = torch.cat((steer, labels), 0)
+        labels = torch.cat((motor, labels), 0)
+        
+        # Creates batch
+        batch_input = torch.cat((torch.unsqueeze(neural_input ,0), batch_input), 0)
+        batch_metadata = torch.cat((torch.unsqueeze(metaData, 0), batch_metadata), 0)
+        batch_labels = torch.cat((torch.unsqueeze(labels, 0), batch_labels), 0)
+
+        # Train and Backpropagate on Batch Data
+        outputs = net(Variable(batch_input.cuda().float()), Variable(batch_metadata.cuda().float()))
+        loss = criterion(outputs, Variable(batch_labels.cuda().float())) 
+        running_loss += loss.data[0]
+
+    print('Average on Validation Set Loss = ' + str(running_loss/total_runs))
+
+
 def train():
+    global cur_steer_choice, validation_ctr_low, validation_ctr_high
+
     running_loss = 0.0
     total_runs = 0
     i = 0
@@ -106,10 +154,16 @@ def train():
         if i % print_rate  == print_rate - 1: # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' % (batch_epoch + 1, total_runs, 
                 running_loss / print_rate))
+
+
             running_loss = 0.0
             print(' Clock speed (Datapoints / Seconds): ' + str(print_rate * batch_size/ (time.time() - start_time)))
-            start_time = time.time()
+            cur_steer_choice = 0
+            validation_ctr_low = -1
+            validation_ctr_high = -1
+            run_job( validation , 'Validation')
             torch.save(net.state_dict(), 'save/simple_net')
+            start_time = time.time()
 
         i += 1
 
@@ -181,13 +235,48 @@ def instantiate_net():
 def print_net():
     print (net)
 
+def pick_validation_data():
+    global choice, run_code, seg_num, offset, data, cur_steer_choice
+    global validation_ctr_high, validation_ctr_low, N_FRAMES, N_STEPS, ignore, require_one, print_timer, loss10000, loss
+
+    
+    low_start = len_low_steer * 9 / 10
+    high_start = len_high_steer * 9 / 10
+
+
+    if validation_ctr_low >= len_low_steer:
+        validation_ctr_low = -1
+    if validation_ctr_high >= len_high_steer:
+        validaton_ctr_high = -1
+    if validation_ctr_low == -1:
+        validation_ctr_low = low_start
+    if validation_ctr_high == -1:
+        validation_ctr_high = high_start
+
+    if cur_steer_choice == 0: # alternate steer choices
+        choice = low_steer[validation_ctr_low]
+        cur_steer_choice = 1
+        validation_ctr_low += 1
+    else:
+        choice = high_steer[validation_ctr_high]
+        cur_steer_choice = 0
+        validation_ctr_high += 1
+
+    run_code = choice[3]
+    seg_num = choice[0]
+    offset = choice[1]
+    data = get_data(run_code, seg_num,offset,N_STEPS,offset+0,N_FRAMES,ignore=ignore,
+        require_one=require_one)
+
 def pick_data():
     global choice, run_code, seg_num, offset, data
     global ctr_low, ctr_high, N_FRAMES, N_STEPS, ignore, require_one, print_timer, loss10000, loss
 
-    if ctr_low >= len_low_steer:
+    low_bound = len_low_steer * 9 / 10
+    high_bound = len_high_steer * 9 / 10
+    if ctr_low > low_bound:
         ctr_low = -1
-    if ctr_high >= len_high_steer:
+    if ctr_high > high_bound:
         ctr_high = -1
     if ctr_low == -1:
         random.shuffle(low_steer) # shuffle data before using (again)
@@ -217,3 +306,8 @@ run_job( model_init_params, 'initializing train parameters')
 run_job( instantiate_net, 'instantiating neural network')
 run_job( print_net, 'printing neural network layers')
 run_job( train, 'Training')
+cur_steer_choice = 0
+validation_ctr_low = -1
+validation_ctr_high = -1
+print('Doing Final Validation (will take approx. 3 hours)')
+validation(tenpercent=True)
