@@ -1,25 +1,8 @@
-import argparse
-
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 
 from libs.import_utils import *
 from nets.simple_net import Z2Color
-
-# Define Arguements and Default Values
-parser = argparse.ArgumentParser(description='PyTorch z2_color Training')
-parser.add_argument('--validate', default='', type=str, metavar='PATH',
-                    help='path to model for validation')
-parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps with images.')
-parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
-parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2'], type=str, nargs='+',
-                    help='Runs with these labels are ignored')
-parser.add_argument('--require_one', default=[], type=str, nargs='+',
-                    help='Mandatory run labels, runs without these labels will be ignored.')
-parser.add_argument('--cuda_device', default=0, type=int, help='Cuda GPU ID to use for GPU Acceleration.')
-parser.add_argument('--batch-size', default=5, type=int, help='Number of datapoints in a mini-batch for training.')
-args = parser.parse_args()
 
 
 def load_full_run_data():
@@ -129,7 +112,7 @@ def get_labels(data):
     return torch.cat((steer, motor), 0)
 
 
-def get_batch_data(batch_size):
+def get_batch_data(batch_size, low_steer, high_steer):
     batch_metadata = torch.FloatTensor().cuda()
     batch_input = torch.FloatTensor().cuda()
     batch_labels = torch.FloatTensor().cuda()
@@ -152,44 +135,3 @@ def get_batch_data(batch_size):
 
     # Train and Backpropagate on Batch Data
     return progress, True, batch_input, batch_metadata, batch_labels
-
-
-torch.set_default_tensor_type('torch.FloatTensor')  # Default tensor to float for consistency
-torch.cuda.device(args.cuda_device)  # Cuda device ID
-
-# Load Data
-print('Loading run codes')
-load_run_codes()
-print('Loading run data')
-load_full_run_data()
-print()
-print('Loading steer data')
-low_steer, high_steer = load_steer_data()
-print()
-# Instantiate and Print Neural Net
-net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
-print(net)
-
-try:
-    for epoch in range(10):  # Iterate through epochs
-        # Training
-        notFinished = True  # Checks if finished with dataset
-        pb = ProgressBar(len(low_steer) + len(high_steer))
-        while notFinished:
-            # Load batch
-            progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(args.batch_size)
-
-            # Run neural net + Calculate Loss
-            outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
-            loss = criterion(outputs, Variable(batch_labels))
-            # Backprop
-            loss.backward()
-            optimizer.step()
-            # Update progress bar
-            pb.animate(progress)
-except KeyboardInterrupt:
-    low, high, cur_choice = pick_data()
-    save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
-                 'optim': optimizer.state_dict()}
-    torch.save(save_data, 'interrupt_save')
-    print('Saved model!')
