@@ -324,6 +324,7 @@ for epoch in range(10):  # Iterate through epochs
     while isFinished != 'DONE':
         isFinished = train_batch(args.batch_size)
 
+
 # cur_steer_choice = 0
 # validation_ctr_low = -1
 # validation_ctr_high = -1
