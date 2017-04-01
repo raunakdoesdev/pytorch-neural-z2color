@@ -1,7 +1,8 @@
 from __future__ import print_function
-import time
-import sys
+
 import os
+import sys
+import time
 
 home_path = os.path.expanduser("~")
 
@@ -35,6 +36,8 @@ class ProgressBar:
         print('\r', self, end='')
         sys.stdout.flush()
         self.update_iteration(iter + 1)
+        if iter == self.iterations - 1:
+            print('')
 
     def update_iteration(self, elapsed_iter):
         self.__update_amount((elapsed_iter / float(self.iterations)) * 100.0)
@@ -67,3 +70,12 @@ class Timer:
 
     def reset(self):
         self.start_time = time.time()
+
+
+def static_vars(**kwargs):
+    def decorate(func):
+        for k in kwargs:
+            setattr(func, k, kwargs[k])
+        return func
+
+    return decorate

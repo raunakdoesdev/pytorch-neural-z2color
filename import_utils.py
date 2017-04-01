@@ -1,6 +1,8 @@
-from utils import *
 import pickle
+
 import h5py
+
+from utils import *
 
 Segment_Data = {}
 hdf5_runs_path = desktop_dir('bair_car_data/hdf5/runs')
@@ -28,7 +30,8 @@ def load_obj(name):
 
 
 def load_run_codes():
-    run_codes = load_obj(join(hdf5_segment_metadata_path, 'run_codes.pkl'))
+    run_codes = load_obj(join(hdf5_segment_metadata_path, 'run_codes.pkl'))  # Unpickle run codes
+    # Segment run codes.
     Segment_Data['run_codes'] = run_codes
     Segment_Data['runs'] = {}
     for n in run_codes.keys():
