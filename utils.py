@@ -36,8 +36,6 @@ class ProgressBar:
         print('\r', self, end='')
         sys.stdout.flush()
         self.update_iteration(iter + 1)
-        if iter == self.iterations - 1:
-            print('')
 
     def update_iteration(self, elapsed_iter):
         self.__update_amount((elapsed_iter / float(self.iterations)) * 100.0)

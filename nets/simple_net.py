@@ -50,3 +50,11 @@ class Z2Color(nn.Module):
         
         return x
 
+
+def unit_test():
+    test_net = Z2Color()
+    a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 6, 13, 26)))
+    print (a)
+
+
+unit_test()

@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(description='PyTorch z2_color Training')
 parser.add_argument('--validate', default='', type=str, metavar='PATH',
                     help='path to model for validation')
 parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps with images.')
-parser.add_argument('--nsteps', default=2, type=int, help='Number of timesteps with non-image data.')
+parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
 parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
 parser.add_argument('--require_one', default=[], type=str, nargs='+',
@@ -262,8 +262,8 @@ def get_metadata(data):
 def get_labels(data):
     labels = torch.FloatTensor()
 
-    steer = torch.from_numpy(data['steer'][-args.nsteps:]) / 99.
-    motor = torch.from_numpy(data['motor'][-args.nsteps:]) / 99.
+    steer = torch.from_numpy(data['steer'][-args.nsteps:]).float() / 99.
+    motor = torch.from_numpy(data['motor'][-args.nsteps:]).float() / 99.
 
     labels = torch.cat((steer, labels), 0)
     labels = torch.cat((motor, labels), 0)
@@ -301,25 +301,28 @@ def train_batch(batch_size):
     print(loss.data[0])
 
 
+torch.set_default_tensor_type('torch.FloatTensor')  # Default tensor to float for consistency
 torch.cuda.device(args.cuda_device)  # Cuda device ID
 
 # Load Data
-print('Load run codes')
+print('Loading run codes')
 load_run_codes()
-print('Load run data')
+print('Loading run data')
 load_full_run_data()
-print('Load steer data')
+print()
+print('Loading steer data')
 low_steer, high_steer = load_steer_data()
-
+print()
 # Instantiate and Print Neural Net
 net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
 print(net)
 
 print('Training!')
 
-isFinished = 'NOT_DONE'
-while isFinished != 'DONE':
-    isFinished = train_batch(args.batch_size)
+for epoch in range(10):  # Iterate through epochs
+    isFinished = 'NOT_DONE'
+    while isFinished != 'DONE':
+        isFinished = train_batch(args.batch_size)
 
 # cur_steer_choice = 0
 # validation_ctr_low = -1
