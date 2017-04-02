@@ -255,11 +255,25 @@ else:
                                  'optim': optimizer.state_dict(), 'epoch': cur_epoch}
                     torch.save(save_data, 'save/progress_save_' + str(epoch) + '-' + str(batch_counter))
 
+            sum = 0
+            count = 0
+            notFinished = True  # Checks if finished with dataset
+            while notFinished:
+                # Load batch
+                progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
+
+                # Run neural net + Calculate Loss
+                outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+                loss = criterion(outputs, Variable(batch_labels))
+                count += 1
+                sum += loss.data[0]
+
             # Save state
             low, high, cur_choice = pick_data()
             save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
                          'optim': optimizer.state_dict(), 'epoch': cur_epoch}
-            torch.save(save_data, 'save/epoch_save_' + str(epoch))
+            torch.save(save_data, 'save/epoch_save_' + str(epoch) + '.' + str(sum / count))
+
     except KeyboardInterrupt:
         low, high, cur_choice = pick_data()
         save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
