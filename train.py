@@ -9,7 +9,7 @@ from nets.simple_net import Z2Color
 
 # Define Arguements and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training')
-parser.add_argument('--validate', default='', type=str, metavar='PATH',
+parser.add_argument('--validate', type=str, metavar='PATH',
                     help='path to model for validation')
 parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps with images.')
 parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
@@ -47,6 +47,40 @@ def instantiate_net():
     criterion = nn.MSELoss().cuda()  # define loss function
     optimizer = torch.optim.SGD(net.parameters(), lr=0.005, momentum=0.0001)
     return net, criterion, optimizer
+
+
+@static_vars(ctr_low=-1, ctr_high=-1, cur_steer_choice=0)
+def pick_validate_data(low_steer, high_steer):
+    low_bound = len(low_steer)
+    high_bound = len(high_steer)
+
+    if pick_validate_data.ctr_low == -1 and pick_validate_data.ctr_high == -1:
+        pick_validate_data.ctr_low = len(low_steer) * 9 / 10
+        pick_validate_data.ctr_high = len(high_steer) * 9 / 10
+    if pick_validate_data.ctr_low >= low_bound and pick_validate_data.ctr_high >= high_bound:
+        return pick_validate_data.ctr_low + pick_validate_data.ctr_high, 0  # Finished processing data
+    if pick_validate_data.ctr_low >= low_bound:
+        pick_validate_data.cur_steer_choice = 1
+    if pick_validate_data.ctr_high >= high_bound:
+        pick_validate_data.cur_steer_choice = 0
+
+    if pick_validate_data.cur_steer_choice == 0:  # with some probability choose a low_steer element
+        choice = low_steer[pick_validate_data.ctr_low]
+        pick_validate_data.ctr_low += 1
+        pick_validate_data.cur_steer_choice = 1
+    else:
+        choice = high_steer[pick_validate_data.ctr_high]
+        pick_validate_data.ctr_high += 1
+        pick_validate_data.cur_steer_choice = 0
+
+    run_code = choice[3]
+    seg_num = choice[0]
+    offset = choice[1]
+
+    return (pick_validate_data.ctr_high + pick_validate_data.ctr_low), get_data(run_code, seg_num, offset, args.nsteps,
+                                                                                offset + 0, args.nframes,
+                                                                                ignore=args.ignore,
+                                                                                require_one=args.require_one)
 
 
 @static_vars(ctr_low=0, ctr_high=0, cur_steer_choice=0)
@@ -129,14 +163,14 @@ def get_labels(data):
     return torch.cat((steer, motor), 0)
 
 
-def get_batch_data(batch_size):
+def get_batch_data(batch_size, data_function):
     batch_metadata = torch.FloatTensor().cuda()
     batch_input = torch.FloatTensor().cuda()
     batch_labels = torch.FloatTensor().cuda()
 
     for batch in range(batch_size):  # Construct batch
         while 'data' not in locals() or data is None:
-            progress, data = pick_data(low_steer, high_steer)
+            progress, data = data_function(low_steer, high_steer)
 
         if data == 0:  # If out of data, return done and skip batch
             return progress, False
@@ -170,26 +204,66 @@ print()
 net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
 print(net)
 
-try:
-    for epoch in range(10):  # Iterate through epochs
-        # Training
-        notFinished = True  # Checks if finished with dataset
-        pb = ProgressBar(len(low_steer) + len(high_steer))
-        while notFinished:
-            # Load batch
-            progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(args.batch_size)
+if args.validate is not None:
+    save_data = torch.load(args.validate)
+    net.load_state_dict(save_data['net'])
 
-            # Run neural net + Calculate Loss
-            outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
-            loss = criterion(outputs, Variable(batch_labels))
-            # Backprop
-            loss.backward()
-            optimizer.step()
-            # Update progress bar
-            pb.animate(progress)
-except KeyboardInterrupt:
-    low, high, cur_choice = pick_data()
-    save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
-                 'optim': optimizer.state_dict()}
-    torch.save(save_data, 'interrupt_save')
-    print('Saved model!')
+    sum = 0
+    count = 0
+    notFinished = True  # Checks if finished with dataset
+    while notFinished:
+        # Load batch
+        progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(5, pick_validate_data)
+
+        # Run neural net + Calculate Loss
+        outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+        loss = criterion(outputs, Variable(batch_labels))
+        count += 1
+        sum += loss.data[0]
+        print('Average Loss: ' + str(sum / count))
+
+else:
+    cur_epoch = 0
+    try:
+        for epoch in range(10):  # Iterate through epochs
+            cur_epoch = epoch
+            # Training
+            notFinished = True  # Checks if finished with dataset
+            pb = ProgressBar(len(low_steer) + len(high_steer))
+            counter = 0
+            while notFinished:
+                # Load batch
+                progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(args.batch_size,
+                                                                                                  pick_data)
+
+                # Run neural net + Calculate Loss
+                outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+                loss = criterion(outputs, Variable(batch_labels))
+                # Backprop
+                loss.backward()
+                optimizer.step()
+                # Update progress bar
+                pb.animate(progress)
+
+                counter += 1
+                if counter == 10000:
+                    sum = 0
+                    count = 0
+                    notFinished = True  # Checks if finished with dataset
+                    while notFinished:
+                        # Load batch
+                        progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(5,
+                                                                                                          pick_validate_data)
+
+                        # Run neural net + Calculate Loss
+                        outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+                        loss = criterion(outputs, Variable(batch_labels))
+                        count += 1
+                        sum += loss.data[0]
+                        print('Average Loss: ' + str(sum / count))
+    except KeyboardInterrupt:
+        low, high, cur_choice = pick_data()
+        save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+                     'optim': optimizer.state_dict(), 'epoch': cur_epoch}
+        torch.save(save_data, 'interrupt_save')
+        print('\nSaved model!')
