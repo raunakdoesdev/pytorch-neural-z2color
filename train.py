@@ -19,6 +19,8 @@ parser.add_argument('--require_one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
 parser.add_argument('--cuda_device', default=0, type=int, help='Cuda GPU ID to use for GPU Acceleration.')
 parser.add_argument('--batch-size', default=5, type=int, help='Number of datapoints in a mini-batch for training.')
+parser.add_argument('--saverate', default=10000, type=int,
+                    help='Number of batches after which a progress save is done.')
 args = parser.parse_args()
 
 
@@ -169,6 +171,7 @@ def get_batch_data(batch_size, data_function):
     batch_labels = torch.FloatTensor().cuda()
 
     for batch in range(batch_size):  # Construct batch
+        data = None
         while 'data' not in locals() or data is None:
             progress, data = data_function(low_steer, high_steer)
 
@@ -230,7 +233,8 @@ else:
             # Training
             notFinished = True  # Checks if finished with dataset
             pb = ProgressBar(len(low_steer) + len(high_steer))
-            counter = 0
+            batch_counter = 0
+            start = time.time()
             while notFinished:
                 # Load batch
                 progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(args.batch_size,
@@ -244,23 +248,18 @@ else:
                 optimizer.step()
                 # Update progress bar
                 pb.animate(progress)
+                batch_counter += 1
+                if batch_counter % args.saverate == args.saverate - 1:
+                    low, high, cur_choice = pick_data()
+                    save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+                                 'optim': optimizer.state_dict(), 'epoch': cur_epoch}
+                    torch.save(save_data, 'save/progress_save_' + str(epoch) + '-' + str(batch_counter))
 
-                counter += 1
-                if counter == 10000:
-                    sum = 0
-                    count = 0
-                    notFinished = True  # Checks if finished with dataset
-                    while notFinished:
-                        # Load batch
-                        progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(5,
-                                                                                                          pick_validate_data)
-
-                        # Run neural net + Calculate Loss
-                        outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
-                        loss = criterion(outputs, Variable(batch_labels))
-                        count += 1
-                        sum += loss.data[0]
-                        print('Average Loss: ' + str(sum / count))
+            # Save state
+            low, high, cur_choice = pick_data()
+            save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+                         'optim': optimizer.state_dict(), 'epoch': cur_epoch}
+            torch.save(save_data, 'save/epoch_save_' + str(epoch))
     except KeyboardInterrupt:
         low, high, cur_choice = pick_data()
         save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
