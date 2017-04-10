@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="f84a1a34-41e2-49bf-a194-45355c3e2ab5" name="remote_pytorch_neural" url="http://128.32.158.228">
+        <fileTransfer host="128.32.158.228" port="22" rootFolder="/home/schowdhuri" accessType="SFTP" password="dfdadfd8dfc3dfdcdfcbdfdedfcfdfc1dfcfdfd3" username="schowdhuri">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
