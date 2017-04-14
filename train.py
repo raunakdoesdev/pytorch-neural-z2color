@@ -9,7 +9,7 @@ from libs.import_utils import *
 from nets.simple_net import Z2Color
 
 # Define Arguments and Default Values
-parser = argparse.ArgumentParser(description='PyTorch z2_color Training')
+parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--validate', type=str, metavar='PATH',
                     help='path to model for validation')
 # parser.add_argument('--skipfirstval', type=str, metavar='PATH',
@@ -204,7 +204,8 @@ def get_batch_data(batch_size, data_function):
 
 
 torch.set_default_tensor_type('torch.FloatTensor')  # Default tensor to float for consistency
-torch.cuda.device(args.cuda_device)  # Cuda device ID
+
+torch.cuda.set_device(args.cuda_device)  # Cuda device ID
 
 # Load Data
 print('Loading run codes')
@@ -241,6 +242,8 @@ if args.validate is not None:
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
         sum += loss.data[0]
+
+        # print('Output:\n' + str(outputs) + '\nLabels:\n' + str(batch_labels))
         print('Average Loss: ' + str(sum / count))
 else:
     print(net)
