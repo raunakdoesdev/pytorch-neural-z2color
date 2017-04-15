@@ -3,6 +3,7 @@ import datetime
 
 import torch
 import torch.nn as nn
+import torch.nn.utils as nnutils
 from torch.autograd import Variable
 
 from libs.import_utils import *
@@ -275,6 +276,7 @@ else:
 
                 # Backprop
                 loss.backward()
+                nnutils.clip_grad_norm(net.parameters(), 1.0)
                 optimizer.step()
 
                 # Update progress bar
