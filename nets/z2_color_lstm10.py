@@ -19,7 +19,7 @@ class Z2ColorLSTM10(nn.Module):
         self.ip1 = nn.Linear(in_features=2560, out_features=2560)
         self.ip1_drop = nn.Dropout(p=0.0)
         self.lstm1 = nn.LSTM(input_size=256, hidden_size=16, num_layers=2, batch_first=True)
-        self.ip2 = nn.Linear(in_features=160, out_features=20)
+        self.ip2 = nn.Linear(in_features=160, out_features=60)
 
         # Initialize weights
         nn.init.normal(self.conv1.weight, std=0.00001)
