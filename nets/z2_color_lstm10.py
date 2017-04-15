@@ -59,7 +59,7 @@ class Z2ColorLSTM(nn.Module):
 
 def unit_test():
     test_net = Z2ColorLSTM()
-    a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 6, 13, 26)))
+    a = test_net(Variable(torch.randn(5, 60, 94, 168)), Variable(torch.randn(5, 6, 13, 26)))
     print (a)
 
 
