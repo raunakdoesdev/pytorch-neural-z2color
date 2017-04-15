@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 
 from libs.import_utils import *
-from nets.simple_net import Z2Color
+from nets.z2_color import Z2Color
 
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
