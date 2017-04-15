@@ -18,7 +18,7 @@ class Z2ColorDropout(nn.Module):
         self.conv2_pool_drop = nn.Dropout2d(p=0.5)
         self.ip1 = nn.Linear(in_features=2560, out_features=512)
         self.ip1_drop = nn.Dropout(p=0.5)
-        self.ip2 = nn.Linear(in_features=32, out_features=20)
+        self.ip2 = nn.Linear(in_features=512, out_features=20)
 
         # Initialize weights
         nn.init.normal(self.conv1.weight, std=0.00001)
