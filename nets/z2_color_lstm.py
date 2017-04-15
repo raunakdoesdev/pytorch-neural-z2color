@@ -48,7 +48,7 @@ class Z2ColorLSTM(nn.Module):
 
         # lstm1
         x = x.view(-1, 2, 256)
-        x = self.lstm1(x)
+        x = self.lstm1(x)[0]
         x = x.view(-1, 2 * 16)
 
         # ip2
