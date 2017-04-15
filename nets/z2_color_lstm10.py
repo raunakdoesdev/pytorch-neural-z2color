@@ -5,9 +5,9 @@ import torch.nn.init as initialization
 from torch.autograd import Variable
 
 
-class Z2ColorLSTM(nn.Module):
+class Z2ColorLSTM10(nn.Module):
     def __init__(self):
-        super(Z2ColorLSTM, self).__init__()
+        super(Z2ColorLSTM10, self).__init__()
 
         self.conv1 = nn.Conv2d(in_channels=60, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
@@ -58,7 +58,7 @@ class Z2ColorLSTM(nn.Module):
 
 
 def unit_test():
-    test_net = Z2ColorLSTM()
+    test_net = Z2ColorLSTM10()
     a = test_net(Variable(torch.randn(5, 60, 94, 168)), Variable(torch.randn(5, 6, 13, 26)))
     print (a)
 
