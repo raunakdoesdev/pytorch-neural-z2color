@@ -1,313 +1,334 @@
-from __future__ import print_function
-from nets.simple_net import SimpleNet
-from import_utils import *
+import argparse
+import datetime
+
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy.random as random
-import shelve
-import sys
-import time
+from torch.autograd import Variable
 
-# Parameters
-batch_size = 20 # Mini batch size
-print_rate = 10 # Print every 1000 mini-batches (also the save rate)
-num_training_sets = 1000000
-torch.cuda.device(0) # Cuda device ID
+from libs.import_utils import *
+from nets.simple_net import Z2Color
 
-# Var Initializations
-tab_count = 0
+# Define Arguments and Default Values
+parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--validate', type=str, metavar='PATH',
+                    help='path to model for validation')
+# parser.add_argument('--skipfirstval', type=str, metavar='PATH',
+#                     help='Skip the first validation (if restoring an end of epoch save file)')
+parser.add_argument('--resume', type=str, metavar='PATH',
+                    help='path to model for training resume')
+parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps with images.')
+parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
+parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2'], type=str, nargs='+',
+                    help='Runs with these labels are ignored')
+parser.add_argument('--require_one', default=[], type=str, nargs='+',
+                    help='Mandatory run labels, runs without these labels will be ignored.')
+parser.add_argument('--cuda_device', default=0, type=int, help='Cuda GPU ID to use for GPU Acceleration.')
+parser.add_argument('--batch-size', default=5, type=int, help='Number of datapoints in a mini-batch for training.')
+parser.add_argument('--saverate', default=10000, type=int,
+                    help='Number of batches after which a progress save is done.')
+args = parser.parse_args()
 
-def run_job( fun, job_title, debug=True): # Simply runs function and prints out data regarding it
-    global tab_count
-    if(debug):
-        print(tab_count * '\t' + 'Starting ' + job_title + '...' )
-        tab_count += 1
-    fun()
-    if(debug):
-        tab_count -= 1
-        print(tab_count * '\t' + 'Finshed ' + job_title + '!' )
-
-def get_camera_data():
-    global neural_input
-    neural_input = torch.DoubleTensor()
-    for c in range(3):
-        for camera in ('left','right'):
-            for t in range(N_FRAMES):
-                raw_input_data = torch.from_numpy(data[camera][t][:,:,c]).double()
-                neural_input = torch.cat((neural_input, raw_input_data/255.), 2)  # Adds channel
-
-    # Switch dimensions to match neural net
-    neural_input = torch.transpose(neural_input,0,2)
-    neural_input = torch.transpose(neural_input,1,2)
-   
-def get_metadata():
-    global metaData
-    metaData = torch.DoubleTensor()
-    zero_matrix = torch.DoubleTensor(1, 13,26).zero_() # Min value matrix
-    one_matrix = torch.DoubleTensor(1, 13,26).fill_(1) # Max value matrix
-    
-    for cur_label in ['racing','caffe','follow','direct', 'play', 'furtive']:
-        if cur_label == 'caffe':
-            if data['states'][0]:
-                metaData = torch.cat((one_matrix, metaData), 0)
-            else:
-                metaData = torch.cat((zero_matrix, metaData), 0)
-        else:
-            if data['labels'][cur_label]:
-                metaData = torch.cat((one_matrix, metaData), 0)
-            else:
-                metaData = torch.cat((zero_matrix, metaData), 0)
-
-def validation(tenpercent=True):
-    global len_high_steer, len_low_steer
-    running_loss = 0.0
-    total_runs = 2000
-
-    if tenpercent:
-        total_runs = (len_high_steer / 10) + (len_low_steer / 10) # Print total runs
-
-    epoch_progress = ProgressBar(total_runs())
-    for batch_epoch in range(total_runs):
-        batch_metadata = torch.DoubleTensor()
-        batch_input = torch.DoubleTensor()
-        batch_labels = torch.DoubleTensor()
-        
-        pick_validation_data()
-        while data == None: # Iterate until valid datapoint is picked
-            pick_validation_data()
-
-        get_camera_data()
-        get_metadata()
-        
-
-        # Get Labels
-        labels = torch.DoubleTensor()
-        steer = torch.from_numpy(data['steer'][-N_STEPS:])/99.
-        motor = torch.from_numpy(data['motor'][-N_STEPS:])/99.
-        labels = torch.cat((steer, labels), 0)
-        labels = torch.cat((motor, labels), 0)
-        
-        # Creates batch
-        batch_input = torch.cat((torch.unsqueeze(neural_input ,0), batch_input), 0)
-        batch_metadata = torch.cat((torch.unsqueeze(metaData, 0), batch_metadata), 0)
-        batch_labels = torch.cat((torch.unsqueeze(labels, 0), batch_labels), 0)
-
-        # Train and Backpropagate on Batch Data
-        outputs = net(Variable(batch_input.cuda().float()), Variable(batch_metadata.cuda().float()))
-        loss = criterion(outputs, Variable(batch_labels.cuda().float())) 
-        running_loss += loss.data[0]
-        epoch_progress.animate(batch_epoch+1)
-
-    print('Average on Validation Set Loss = ' + str(running_loss/total_runs))
-    return running_loss/total_runs
+start_ctrl_low = 0
+start_ctrl_high = 0
+if args.resume is not None:
+    save_data = torch.load(args.resume)
+    start_ctrl_low = save_data['low_ctr']
+    start_ctrl_high = save_data['high_ctr']
 
 
-def train():
-    global cur_steer_choice, validation_ctr_low, validation_ctr_high
-    global len_high_steer, len_low_steer
-
-    num_epochs = 10
-    total_runs = (((len_high_steer / 10) + (len_low_steer / 10)) * 9) - 2 # Print total runs
-    running_loss = 0.0
-    total_runs = 0
-    # start_time = timer()
-    start_time = time.time()
-
-    num_batches_per_epoch = (len_high_steer + len_low_steer)*9/(10*batch_size)
-
-    save_dir = time.strftime("save/%m-%d--%H-%M-%S")
-    os.makedirs(save_dir)
-    os.makedirs(save_dir+'/validation')
-
-    for epoch in range(num_epochs):
-        print('Epoch # ' + str(epoch) + ' Progress Bar:')
-        epoch_progress = ProgressBar(num_batches_per_epoch)
-
-        for run in range(num_batches_per_epoch):
-            batch_metadata = torch.DoubleTensor()
-            batch_input = torch.DoubleTensor()
-            batch_labels = torch.DoubleTensor()
-            
-            for batch in range(batch_size): # Construct batch
-                pick_data()
-                while data == None: # Iterate until valid datapoint is picked
-                    pick_data() # TODO: FACTOR REPEAT INTO CODE
-                get_camera_data()
-                get_metadata()
-
-                # get labels
-                labels = torch.DoubleTensor()
-
-                steer = torch.from_numpy(data['steer'][-N_STEPS:])/99.
-                motor = torch.from_numpy(data['motor'][-N_STEPS:])/99.
-
-                labels = torch.cat((steer, labels), 0)
-                labels = torch.cat((motor, labels), 0)
-                
-                # Creates batch
-                batch_input = torch.cat((torch.unsqueeze(neural_input ,0), batch_input), 0)
-                batch_metadata = torch.cat((torch.unsqueeze(metaData, 0), batch_metadata), 0)
-                batch_labels = torch.cat((torch.unsqueeze(labels, 0), batch_labels), 0)
-                total_runs += 1
-
-            # Train and Backpropagate on Batch Data
-            outputs = net(Variable(batch_input.cuda().float()), Variable(batch_metadata.cuda().float()))
-            loss = criterion(outputs, Variable(batch_labels.cuda().float())) 
-            loss.backward()
-            optimizer.step()
-            epoch_progress.animate(run + 1)
-
-            if run % print_rate == print_rate - 1:
-                file_name = save_dir + '/epoch_'+ str(epoch)+'-batch_'+ str(run + 1)
-                torch.save(net.state_dict(), file_name)
-                
-
-        print ('Validating Epoch # ' + str(epoch) + ' Training:')
-        cur_steer_choice = 0
-        validation_ctr_low = -1
-        validation_ctr_high = -1
-        val_loss = validation()
-        file_name = save_dir + '/validation/epoch_'+ str(epoch)+'--valloss_'+ str(val_loss) 
-        torch.save(net.state_dict(), file_name)
-
-
-def load_run_data_progress():
+def load_full_run_data():
     pb = ProgressBar(1 + len(Segment_Data['run_codes']))
     ctr = 0
     for n in Segment_Data['run_codes'].keys():
-    	ctr+=1
-    	pb.animate(ctr)
-    	load_run_data(n)
+        ctr += 1
+        pb.animate(ctr)
+        load_run_data(n)
     pb.animate(len(Segment_Data['run_codes']))
-    print()
+
 
 def load_steer_data():
-    global len_high_steer, len_low_steer, low_steer, high_steer
-    reload_data = False
-    
-    filename='/home/schowdhuri/working-directory/pytorch_neural/tmp/shelve.out'
-    try:
-        my_shelf = shelve.open(filename)
-    except:
-        reload_data = True
-    if reload_data or len(my_shelf) == 0 or '-r' in sys.argv: # Load steer data from pickle and reshelve
-        shelfbar = ProgressBar(4)
-        shelfbar.animate(0)
-        low_steer = load_obj(join(hdf5_segment_metadata_path , 'low_steer'))
-        shelfbar.animate(1)
-        high_steer  = load_obj(join(hdf5_segment_metadata_path , 'high_steer'))
-        shelfbar.animate(2)
-        my_shelf = shelve.open(filename,'n') # 'n' for new
-        my_shelf['low_steer'] = low_steer
-        shelfbar.animate(3)
-        my_shelf['high_steer'] = high_steer
-        shelfbar.animate(4)
-        my_shelf.close()
-    else: # Load steer data from previous shelve (faster)
-        shelfbar = ProgressBar(2)
-        shelfbar.animate(0)
-        low_steer = my_shelf['low_steer']
-        shelfbar.animate(1)
-        high_steer = my_shelf['high_steer']
-        shelfbar.animate(2)
-        my_shelf.close()
-    len_high_steer = len(high_steer)
-    len_low_steer = len(low_steer)
-    print()
+    load_steer_data_progress = ProgressBar(2)
+    load_steer_data_progress.animate(0)
+    low_steer = load_obj(join(hdf5_segment_metadata_path, 'low_steer'))
+    load_steer_data_progress.animate(1)
+    high_steer = load_obj(join(hdf5_segment_metadata_path, 'high_steer'))
+    load_steer_data_progress.animate(2)
+    return low_steer, high_steer
 
-def model_init_params():
-    global ctr_low, ctr_high, N_FRAMES, N_STEPS, ignore, require_one, print_timer, loss10000, loss
-    global cur_steer_choice_training
-
-    ctr_low = -1
-    ctr_high = -1
-    cur_steer_choice_training = 0
-    
-    N_FRAMES = 2 # how many timesteps with images.
-    N_STEPS = 10 # how many timestamps with non-image data
-    ignore=['reject_run','left','out1_in2'] # runs with these labels are ignored
-    require_one=[] # at least one of this type of run lable is required
-    loss10000 = []
-    loss = []
 
 def instantiate_net():
-    global net, criterion, optimizer
-    net = SimpleNet()
-    criterion = nn.MSELoss()  # define loss function
+    net = Z2Color().cuda()
+    criterion = nn.MSELoss().cuda()  # define loss function
     optimizer = torch.optim.SGD(net.parameters(), lr=0.005, momentum=0.0001)
-    net = net.cuda()
-    criterion = criterion.cuda()
+    return net, criterion, optimizer
 
-def print_net():
-    print (net)
 
-def pick_validation_data():
-    global choice, run_code, seg_num, offset, data, cur_steer_choice
-    global validation_ctr_high, validation_ctr_low, N_FRAMES, N_STEPS, ignore, require_one, print_timer, loss10000, loss
-    
-    low_start = len_low_steer * 9 / 10
-    high_start = len_high_steer * 9 / 10
+@static_vars(ctr_low=-1, ctr_high=-1, cur_steer_choice=0)
+def pick_validate_data(low_steer, high_steer):
+    low_bound = len(low_steer)
+    high_bound = len(high_steer)
 
-    if validation_ctr_low >= len_low_steer:
-        cur_steer_choice = 1 # Stop using it if it's used up
-    if validation_ctr_high >= len_high_steer:
-        cur_steer_choice = 0 # Stop using it if it's used up
-    if validation_ctr_low == -1:
-        validation_ctr_low = low_start
-    if validation_ctr_high == -1:
-        validation_ctr_high = high_start
+    if pick_validate_data.ctr_low == -1 and pick_validate_data.ctr_high == -1:
+        pick_validate_data.ctr_low = len(low_steer) * 9 / 10
+        pick_validate_data.ctr_high = len(high_steer) * 9 / 10
+    if pick_validate_data.ctr_low >= low_bound and pick_validate_data.ctr_high >= high_bound:
+        pick_validate_data.ctr_low = len(low_steer) * 9 / 10
+        pick_validate_data.ctr_high = len(high_steer) * 9 / 10
+        return pick_validate_data.ctr_low + pick_validate_data.ctr_high, 0  # Finished processing data
+    if pick_validate_data.ctr_low >= low_bound:
+        pick_validate_data.cur_steer_choice = 1
+    if pick_validate_data.ctr_high >= high_bound:
+        pick_validate_data.cur_steer_choice = 0
 
-    if cur_steer_choice == 0: # alternate steer choices
-        choice = low_steer[validation_ctr_low]
-        cur_steer_choice = 1
-        validation_ctr_low += 1
+    if pick_validate_data.cur_steer_choice == 0:  # with some probability choose a low_steer element
+        choice = low_steer[pick_validate_data.ctr_low]
+        pick_validate_data.ctr_low += 1
+        pick_validate_data.cur_steer_choice = 1
     else:
-        choice = high_steer[validation_ctr_high]
-        cur_steer_choice = 0
-        validation_ctr_high += 1
+        choice = high_steer[pick_validate_data.ctr_high]
+        pick_validate_data.ctr_high += 1
+        pick_validate_data.cur_steer_choice = 0
 
     run_code = choice[3]
     seg_num = choice[0]
     offset = choice[1]
-    data = get_data(run_code, seg_num,offset,N_STEPS,offset+0,N_FRAMES,ignore=ignore,
-        require_one=require_one)
 
-def pick_data():
-    global choice, run_code, seg_num, offset, data, cur_steer_choice_training
-    global ctr_low, ctr_high, N_FRAMES, N_STEPS, ignore, require_one, print_timer, loss10000, loss
+    return (pick_validate_data.ctr_high + pick_validate_data.ctr_low), get_data(run_code, seg_num, offset, args.nsteps,
+                                                                                offset + 0, args.nframes,
+                                                                                ignore=args.ignore,
+                                                                                require_one=args.require_one)
 
-    low_bound = len_low_steer * 9 / 10
-    high_bound = len_high_steer * 9 / 10
 
-    if ctr_low > low_bound:
-        cur_steer_choice_training = 1
-    if ctr_high > high_bound:
-        cur_steer_choice_training = 0
-        ctr_high = -1
-    if ctr_low == -1:
-        ctr_low = 0
-    if ctr_high == -1:
-        ctr_high = 0
+@static_vars(ctr_low=start_ctrl_low, ctr_high=start_ctrl_high, cur_steer_choice=0)
+def pick_data(low_steer=None, high_steer=None):
+    if low_steer is None and high_steer is None:
+        return pick_data.ctr_low, pick_data.ctr_high, pick_data.cur_steer_choice
+    low_bound = len(low_steer) * 9 / 10
+    high_bound = len(high_steer) * 9 / 10
 
-    if cur_steer_choice_training == 0: # with some probability choose a low_steer element
-        choice = low_steer[ctr_low]
-        ctr_low += 1
+    if pick_data.ctr_low >= low_bound and pick_data.ctr_high >= high_bound:
+        # Reset counters and say you're done
+        pick_data.ctr_low = 0
+        pick_data.ctr_high = 0
+        return pick_data.ctr_low + pick_data.ctr_high, 0  # Finished processing data
+
+    if pick_data.ctr_low >= low_bound:
+        pick_data.cur_steer_choice = 1
+    if pick_data.ctr_high >= high_bound:
+        pick_data.cur_steer_choice = 0
+
+    if pick_data.cur_steer_choice == 0:  # with some probability choose a low_steer element
+        choice = low_steer[pick_data.ctr_low]
+        pick_data.ctr_low += 1
+        pick_data.cur_steer_choice = 1
     else:
-        choice = high_steer[ctr_high]
-        ctr_high += 1
+        choice = high_steer[pick_data.ctr_high]
+        pick_data.ctr_high += 1
+        pick_data.cur_steer_choice = 0
 
     run_code = choice[3]
     seg_num = choice[0]
     offset = choice[1]
-    data = get_data(run_code, seg_num,offset,N_STEPS,offset+0,N_FRAMES,ignore=ignore,
-        require_one=require_one)
 
-run_job( load_run_codes, 'loading run codes')
-run_job( load_run_data_progress, 'loading run data')
-run_job( load_steer_data, 'load steer data')
-run_job( model_init_params, 'initializing train parameters')
-run_job( instantiate_net, 'instantiating neural network')
-run_job( print_net, 'printing neural network layers')
-run_job( train, 'Training')
+    return (pick_data.ctr_high + pick_data.ctr_low), get_data(run_code, seg_num, offset, args.nsteps, offset + 0,
+                                                              args.nframes, ignore=args.ignore,
+                                                              require_one=args.require_one)
+
+
+def get_camera_data(data):
+    camera_data = torch.FloatTensor().cuda()
+    for c in range(3):
+        for camera in ('left', 'right'):
+            for t in range(args.nframes):
+                raw_input_data = torch.from_numpy(data[camera][t][:, :, c]).cuda().float()
+                camera_data = torch.cat((camera_data, raw_input_data / 255.), 2)  # Adds channel
+
+    # Switch dimensions to match neural net
+    camera_data = torch.transpose(camera_data, 0, 2)
+    camera_data = torch.transpose(camera_data, 1, 2)
+
+    return camera_data
+
+
+def get_metadata(data):
+    metadata = torch.FloatTensor().cuda()
+    zero_matrix = torch.FloatTensor(1, 13, 26).zero_().cuda()  # Min value matrix
+    one_matrix = torch.FloatTensor(1, 13, 26).fill_(1).cuda()  # Max value matrix
+
+    for cur_label in ['racing', 'caffe', 'follow', 'direct', 'play', 'furtive']:
+        if cur_label == 'caffe':
+            if data['states'][0]:
+                metadata = torch.cat((one_matrix, metadata), 0)
+            else:
+                metadata = torch.cat((zero_matrix, metadata), 0)
+        else:
+            if data['labels'][cur_label]:
+                metadata = torch.cat((one_matrix, metadata), 0)
+            else:
+                metadata = torch.cat((zero_matrix, metadata), 0)
+
+    return metadata
+
+
+def get_labels(data):
+    steer = torch.from_numpy(data['steer'][-args.nsteps:]).cuda().float() / 99.
+    motor = torch.from_numpy(data['motor'][-args.nsteps:]).cuda().float() / 99.
+
+    return torch.cat((steer, motor), 0)
+
+
+def get_batch_data(batch_size, data_function):
+    batch_metadata = torch.FloatTensor().cuda()
+    batch_input = torch.FloatTensor().cuda()
+    batch_labels = torch.FloatTensor().cuda()
+
+    for batch in range(batch_size):  # Construct batch
+        data = None
+        while 'data' not in locals() or data is None:
+            progress, data = data_function(low_steer, high_steer)
+
+        if data == 0:  # If out of data, return done and skip batch
+            return progress, False, None, None, None
+
+        camera_data = get_camera_data(data)
+        metadata = get_metadata(data)
+        labels = get_labels(data)
+
+        # Creates batch
+        batch_input = torch.cat((torch.unsqueeze(camera_data, 0), batch_input), 0)
+        batch_metadata = torch.cat((torch.unsqueeze(metadata, 0), batch_metadata), 0)
+        batch_labels = torch.cat((torch.unsqueeze(labels, 0), batch_labels), 0)
+
+    # Train and Backpropagate on Batch Data
+    return progress, True, batch_input, batch_metadata, batch_labels
+
+
+torch.set_default_tensor_type('torch.FloatTensor')  # Default tensor to float for consistency
+
+torch.cuda.set_device(args.cuda_device)  # Cuda device ID
+
+# Load Data
+print('Loading run codes')
+load_run_codes()
+print('Loading run data')
+load_full_run_data()
+print()
+print('Loading steer data')
+low_steer, high_steer = load_steer_data()
+net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
+
+cur_epoch = 0
+if args.resume is not None:
+    save_data = torch.load(args.resume)
+    net.load_state_dict(save_data['net'])
+    optimizer.load_state_dict(save_data['optim'])
+    cur_epoch = save_data['epoch']
+if args.validate is not None:
+    save_data = torch.load(args.validate)
+    net.load_state_dict(save_data['net'])
+
+    sum = 0
+    count = 0
+    notFinished = True  # Checks if finished with dataset
+    while notFinished:
+        # Load batch
+        progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
+        if not notFinished:
+            break
+
+        # Run neural net + Calculate Loss
+        outputs = net(Variable(batch_input), Variable(batch_metadata))
+
+        loss = criterion(outputs, Variable(batch_labels))
+        count += 1
+        sum += loss.data[0]
+
+        # print('Output:\n' + str(outputs) + '\nLabels:\n' + str(batch_labels))
+        print('Average Loss: ' + str(sum / count))
+else:
+    print(net)
+    log_file = open('logs/log_file' + str(datetime.datetime.now().isoformat()), 'w')
+    log_file.truncate()
+    try:
+        for epoch in range(cur_epoch, 10):  # Iterate through epochs
+            cur_epoch = epoch
+            # Training
+            notFinished = True  # Checks if finished with dataset
+            pb = ProgressBar(9 * (len(low_steer) + len(high_steer)) / 10)
+            batch_counter = 0
+            sum = 0
+            sum_counter = 0
+            start = time.time()
+            while notFinished:
+                # Load batch
+                progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(args.batch_size,
+                                                                                                  pick_data)
+                if not notFinished:
+                    break
+
+                # zero the parameter gradients
+                optimizer.zero_grad()
+
+                # Run neural net + Calculate Loss
+                outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+                loss = criterion(outputs, Variable(batch_labels))
+
+                # Backprop
+                loss.backward()
+                optimizer.step()
+
+                # Update progress bar
+                pb.animate(progress)
+                batch_counter += 1
+                sum_counter += 1
+                sum += loss.data[0]
+
+                if sum_counter == 1000:
+                    log_file.write(
+                        '\n' + str(batch_counter) + ',' + str(sum / sum_counter))
+                    log_file.flush()
+                    sum = 0
+                    sum_counter = 0
+
+                if batch_counter % args.saverate == 0 and batch_counter != 0:
+                    low, high, cur_choice = pick_data()
+                    save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+                                 'optim': optimizer.state_dict(), 'epoch': cur_epoch}
+                    torch.save(save_data, 'save/progress_save_' + str(epoch) + '-' + str(batch_counter))
+
+            sum = 0
+            count = 0
+            notFinished = True  # Checks if finished with dataset
+            pb = ProgressBar((len(low_steer) + len(high_steer)) / 10)
+            while notFinished:
+                # Load batch
+                progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
+
+                if not notFinished:
+                    break
+
+                # Run neural net + Calculate Loss
+                outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+                loss = criterion(outputs, Variable(batch_labels))
+                count += 1
+                sum += loss.data[0]
+
+                if count % 1000 == 0:
+                    pb.animate(progress - 9 * (len(low_steer) + len(high_steer)) / 10)
+                    log_file.write('\nAverage Validation Loss,' + str(sum / count))
+                    log_file.flush()
+
+            log_file.write('\nFinish cross validation! Average Validation Error = ' + str(sum / count))
+            log_file.flush()
+            save_data = {'low_ctr': 0, 'high_ctr': 0, 'cur_choice': 0, 'net': net.state_dict(),
+                         'optim': optimizer.state_dict(), 'epoch': cur_epoch}
+            torch.save(save_data, 'save/epoch_save_' + str(cur_epoch) + '.' + str(sum / count))
+    except Exception as e:  # In case of any exception or error, save the model.
+        log_file.write('\nError Recieved while training. Saved model and terminated code:\n' + str(e))
+        low, high, cur_choice = pick_data()
+        save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+                     'optim': optimizer.state_dict(), 'epoch': cur_epoch}
+        torch.save(save_data, 'interrupt_save')
+        print('\nError Recieved, Saved model!')
+    finally:
+        log_file.close()
