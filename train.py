@@ -3,6 +3,7 @@ import datetime
 
 import torch
 import torch.nn as nn
+import torch.nn.utils as nnutils
 from torch.autograd import Variable
 
 from libs.import_utils import *
@@ -59,7 +60,7 @@ def load_steer_data():
 def instantiate_net():
     net = Z2Color().cuda()
     criterion = nn.MSELoss().cuda()  # define loss function
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.01, momentum=0.8)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
     return net, criterion, optimizer
 
 
@@ -275,6 +276,7 @@ else:
 
                 # Backprop
                 loss.backward()
+                nnutils.clip_grad_norm(net.parameters(), 1.0)
                 optimizer.step()
 
                 # Update progress bar
