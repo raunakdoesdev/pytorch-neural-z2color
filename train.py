@@ -3,10 +3,11 @@ import datetime
 
 import torch
 import torch.nn as nn
+import torch.nn.utils as nnutils
 from torch.autograd import Variable
 
 from libs.import_utils import *
-from nets.simple_net import Z2Color
+from nets.z2_color import Z2Color
 
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -275,6 +276,7 @@ else:
 
                 # Backprop
                 loss.backward()
+                nnutils.clip_grad_norm(net.parameters(), 1.0)
                 optimizer.step()
 
                 # Update progress bar

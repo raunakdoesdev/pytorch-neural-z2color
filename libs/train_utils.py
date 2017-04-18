@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from libs.import_utils import *
-from nets.simple_net import Z2Color
+from nets.z2_color import Z2Color
 
 
 def load_full_run_data():
