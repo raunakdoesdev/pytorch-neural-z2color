@@ -14,13 +14,13 @@ class Z2ColorGRU10(nn.Module):
 
         self.conv1 = nn.Conv2d(in_channels=6 * self.N_FRAMES, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.conv1_pool_drop = nn.Dropout2d(p=0.0)
+        self.conv1_pool_drop = nn.Dropout2d(p=0.5)
 
         self.conv2 = nn.Conv2d(in_channels=102, out_channels=256, kernel_size=3, stride=2, groups=2)
         self.conv2_pool = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.conv2_pool_drop = nn.Dropout2d(p=0.0)
+        self.conv2_pool_drop = nn.Dropout2d(p=0.5)
         self.ip1 = nn.Linear(in_features=2560, out_features=256 * self.N_FRAMES)
-        self.ip1_drop = nn.Dropout(p=0.0)
+        self.ip1_drop = nn.Dropout(p=0.5)
         self.gru1 = nn.GRU(input_size=256, hidden_size=16, num_layers=2, batch_first=True)
         self.ip2 = nn.Linear(in_features=16 * self.N_FRAMES, out_features=2 * self.N_STEPS)
 
