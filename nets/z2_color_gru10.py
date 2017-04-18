@@ -10,7 +10,7 @@ class Z2ColorGRU10(nn.Module):
         super(Z2ColorGRU10, self).__init__()
 
         self.N_FRAMES = 10
-        self.N_STEPS = 30
+        self.N_STEPS = 18
 
         self.conv1 = nn.Conv2d(in_channels=6 * self.N_FRAMES, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
