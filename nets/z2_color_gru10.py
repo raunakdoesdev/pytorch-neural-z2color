@@ -50,7 +50,7 @@ class Z2ColorGRU10(nn.Module):
         x = self.ip1_drop(F.relu(self.ip1(x)))
 
         # gru1
-        x = x.view(-1, N_FRAMES, 256)
+        x = x.view(-1, self.N_FRAMES, 256)
         x = self.gru1(x)[0]
         x = x.contiguous().view(-1, self.N_FRAMES * 16)
 
