@@ -19,7 +19,7 @@ parser.add_argument('--resume', type=str, metavar='PATH',
                     help='path to model for training resume')
 parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps with images.')
 parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
-parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2'], type=str, nargs='+',
+parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
 parser.add_argument('--require_one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
