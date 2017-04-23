@@ -21,9 +21,9 @@ parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps 
 parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
 parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
-parser.add_argument('--require_one', default=[], type=str, nargs='+',
+parser.add_argument('--require-one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
-parser.add_argument('--cuda_device', default=0, type=int, help='Cuda GPU ID to use for GPU Acceleration.')
+parser.add_argument('--cuda-device', default=0, type=int, help='Cuda GPU ID to use for GPU Acceleration.')
 parser.add_argument('--batch-size', default=5, type=int, help='Number of datapoints in a mini-batch for training.')
 parser.add_argument('--saverate', default=10000, type=int,
                     help='Number of batches after which a progress save is done.')
