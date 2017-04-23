@@ -24,8 +24,8 @@ parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'raci
 parser.add_argument('--require-one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
 parser.add_argument('--cuda-device', default=0, type=int, help='Cuda GPU ID to use for GPU Acceleration.')
-parser.add_argument('--batch-size', default=5, type=int, help='Number of datapoints in a mini-batch for training.')
-parser.add_argument('--saverate', default=10000, type=int,
+parser.add_argument('--batch-size', default=64, type=int, help='Number of datapoints in a mini-batch for training.')
+parser.add_argument('--saverate', default=700, type=int,
                     help='Number of batches after which a progress save is done.')
 args = parser.parse_args()
 
@@ -285,7 +285,7 @@ else:
                 sum_counter += 1
                 sum += loss.data[0]
 
-                if sum_counter == 1000:
+                if sum_counter == 80:
                     log_file.write(
                         '\n' + str(batch_counter) + ',' + str(sum / sum_counter))
                     log_file.flush()
