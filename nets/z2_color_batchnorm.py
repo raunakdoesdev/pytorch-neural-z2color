@@ -7,7 +7,7 @@ from torch.autograd import Variable
 
 class Z2ColorBatchNorm(nn.Module):
     def __init__(self):
-        super(Z2Color, self).__init__()
+        super(Z2ColorBatchNorm, self).__init__()
 
         self.conv1 = nn.Conv2d(in_channels=12, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
