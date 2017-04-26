@@ -52,7 +52,7 @@ class Z2ColorBatchNorm(nn.Module):
 
 
 def unit_test():
-    test_net = Z2Color()
+    test_net = Z2ColorBatchNorm()
     a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 6, 13, 26)))
     print (a)
 
