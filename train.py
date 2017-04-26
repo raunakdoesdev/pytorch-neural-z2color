@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import random
 
 import torch
 import torch.nn as nn
@@ -60,7 +61,7 @@ def load_steer_data():
 def instantiate_net():
     net = Z2Color().cuda()
     criterion = nn.MSELoss().cuda()  # define loss function
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.1)
     return net, criterion, optimizer
 
 
@@ -142,7 +143,7 @@ def get_camera_data(data):
         for camera in ('left', 'right'):
             for t in range(args.nframes):
                 raw_input_data = torch.from_numpy(data[camera][t][:, :, c]).cuda().float()
-                camera_data = torch.cat((camera_data, raw_input_data / 255.), 2)  # Adds channel
+                camera_data = torch.cat((camera_data, raw_input_data.unsqueeze(2) / 255.), 2)  # Adds channel
 
     # Switch dimensions to match neural net
     camera_data = torch.transpose(camera_data, 0, 2)
@@ -216,6 +217,9 @@ load_full_run_data()
 print()
 print('Loading steer data')
 low_steer, high_steer = load_steer_data()
+random.shuffle(low_steer)
+random.shuffle(high_steer)
+
 net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
 
 cur_epoch = 0
@@ -231,6 +235,7 @@ if args.validate is not None:
     sum = 0
     count = 0
     notFinished = True  # Checks if finished with dataset
+    net.eval()
     while notFinished:
         # Load batch
         progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
@@ -238,7 +243,7 @@ if args.validate is not None:
             break
 
         # Run neural net + Calculate Loss
-        outputs = net(Variable(batch_input), Variable(batch_metadata))
+        outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
 
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
@@ -252,6 +257,8 @@ else:
     log_file.truncate()
     try:
         for epoch in range(cur_epoch, 10):  # Iterate through epochs
+            random.shuffle(low_steer)
+            random.shuffle(high_steer)
             cur_epoch = epoch
             # Training
             notFinished = True  # Checks if finished with dataset
@@ -260,6 +267,7 @@ else:
             sum = 0
             sum_counter = 0
             start = time.time()
+            net.train()
             while notFinished:
                 # Load batch
                 progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(args.batch_size,
@@ -302,6 +310,7 @@ else:
             count = 0
             notFinished = True  # Checks if finished with dataset
             pb = ProgressBar((len(low_steer) + len(high_steer)) / 10)
+            net.eval()
             while notFinished:
                 # Load batch
                 progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
