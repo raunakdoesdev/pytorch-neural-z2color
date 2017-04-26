@@ -9,6 +9,9 @@ class Z2ColorBatchNorm(nn.Module):
     def __init__(self):
         super(Z2ColorBatchNorm, self).__init__()
 
+        self.lr = 0.1
+        self.momentum = 0.1
+
         self.conv1 = nn.Conv2d(in_channels=12, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
         self.conv1_pool_norm = nn.BatchNorm2d(96)
