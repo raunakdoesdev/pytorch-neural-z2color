@@ -217,9 +217,6 @@ load_full_run_data()
 print()
 print('Loading steer data')
 low_steer, high_steer = load_steer_data()
-random.shuffle(low_steer)
-random.shuffle(high_steer)
-
 net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
 
 cur_epoch = 0
