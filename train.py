@@ -66,23 +66,23 @@ def instantiate_net():
 
 
 @static_vars(ctr_low=-1, ctr_high=-1)
-def pick_validate_data(low_steer, high_steer):
-    low_bound = len(low_steer)
-    high_bound = len(high_steer)
+def pick_validate_data(low_steer_train, high_steer_train, low_steer_val, high_steer_val):
+    low_bound = len(low_steer_val)
+    high_bound = len(high_steer_val)
 
     if pick_validate_data.ctr_low == -1 and pick_validate_data.ctr_high == -1:
-        pick_validate_data.ctr_low = len(low_steer) * 9 / 10
-        pick_validate_data.ctr_high = len(high_steer) * 9 / 10
+        pick_validate_data.ctr_low = 0
+        pick_validate_data.ctr_high = 0
     if pick_validate_data.ctr_low >= low_bound or pick_validate_data.ctr_high >= high_bound:
-        pick_validate_data.ctr_low = len(low_steer) * 9 / 10
-        pick_validate_data.ctr_high = len(high_steer) * 9 / 10
-        return pick_validate_data.ctr_low + pick_validate_data.ctr_high, 0  # Finished processing data
+        pick_validate_data.ctr_low = 0
+        pick_validate_data.ctr_high = 0
+        return pick_validate_data.ctr_low + pick_validate_data.ctr_high  # Finished processing data
 
     if random.random() > 0.5:  # with some probability choose a low_steer element
-        choice = low_steer[pick_validate_data.ctr_low]
+        choice = low_steer_val[pick_validate_data.ctr_low]
         pick_validate_data.ctr_low += 1
     else:
-        choice = high_steer[pick_validate_data.ctr_high]
+        choice = high_steer_val[pick_validate_data.ctr_high]
         pick_validate_data.ctr_high += 1
 
     run_code = choice[3]
@@ -96,11 +96,11 @@ def pick_validate_data(low_steer, high_steer):
 
 
 @static_vars(ctr_low=start_ctrl_low, ctr_high=start_ctrl_high)
-def pick_data(low_steer=None, high_steer=None):
-    if low_steer is None and high_steer is None:
+def pick_data(low_steer_train=None, high_steer_train=None, low_steer_val=None, high_steer_val=None):
+    if low_steer_train is None and high_steer_train is None:
         return pick_data.ctr_low, pick_data.ctr_high
-    low_bound = len(low_steer) * 9 / 10
-    high_bound = len(high_steer) * 9 / 10
+    low_bound = len(low_steer_train)
+    high_bound = len(high_steer_train)
 
     if pick_data.ctr_low >= low_bound or pick_data.ctr_high >= high_bound:
         # Reset counters and say you're done
@@ -109,10 +109,10 @@ def pick_data(low_steer=None, high_steer=None):
         return pick_data.ctr_low + pick_data.ctr_high  # Finished processing data
 
     if random.random() > 0.5:  # with some probability choose a low_steer element
-        choice = low_steer[pick_data.ctr_low]
+        choice = low_steer_train[pick_data.ctr_low]
         pick_data.ctr_low += 1
     else:
-        choice = high_steer[pick_data.ctr_high]
+        choice = high_steer_train[pick_data.ctr_high]
         pick_data.ctr_high += 1
 
     run_code = choice[3]
@@ -174,7 +174,7 @@ def get_batch_data(batch_size, data_function):
     for batch in range(batch_size):  # Construct batch
         data = None
         while 'data' not in locals() or data is None:
-            progress, data = data_function(low_steer, high_steer)
+            progress, data = data_function(low_steer_train, high_steer_train, low_steer_val, high_steer_val)
 
         if data == 0:  # If out of data, return done and skip batch
             return progress, False, None, None, None
@@ -206,6 +206,10 @@ print('Loading steer data')
 low_steer, high_steer = load_steer_data()
 random.shuffle(low_steer)
 random.shuffle(high_steer)
+low_steer_train = low_steer[:int(0.9*len(low_steer))]
+high_steer_train = high_steer[:int(0.9*len(high_steer))]
+low_steer_val = low_steer[int(0.9*len(low_steer)):]
+high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
 net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
 
@@ -224,8 +228,8 @@ if args.validate is not None:
     notFinished = True  # Checks if finished with dataset
     net.eval()
     while notFinished:
-        random.shuffle(low_steer)
-        random.shuffle(high_steer)
+        random.shuffle(low_steer_val)
+        random.shuffle(high_steer_val)
         # Load batch
         progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
         if not notFinished:
@@ -246,12 +250,12 @@ else:
     log_file.truncate()
     try:
         for epoch in range(cur_epoch, 10):  # Iterate through epochs
-            random.shuffle(low_steer)
-            random.shuffle(high_steer)
             cur_epoch = epoch
             # Training
             notFinished = True  # Checks if finished with dataset
-            pb = ProgressBar(9 * (len(low_steer) + len(high_steer)) / 10)
+            random.shuffle(low_steer_train)
+            random.shuffle(high_steer_train)
+            pb = ProgressBar(len(low_steer_train) + len(high_steer_train))
             batch_counter = 0
             sum = 0
             sum_counter = 0
@@ -298,7 +302,7 @@ else:
             sum = 0
             count = 0
             notFinished = True  # Checks if finished with dataset
-            pb = ProgressBar((len(low_steer) + len(high_steer)) / 10)
+            pb = ProgressBar(len(low_steer_val) + len(high_steer_val))
             net.eval()
             while notFinished:
                 # Load batch
@@ -314,7 +318,7 @@ else:
                 sum += loss.data[0]
 
                 if count % 1000 == 0:
-                    pb.animate(progress - 9 * (len(low_steer) + len(high_steer)) / 10)
+                    pb.animate(progress)
                     log_file.write('\nAverage Validation Loss,' + str(sum / count))
                     log_file.flush()
 
