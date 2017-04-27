@@ -65,7 +65,7 @@ def instantiate_net():
     return net, criterion, optimizer
 
 
-@static_vars(ctr_low=-1, ctr_high=-1, cur_steer_choice=0)
+@static_vars(ctr_low=-1, ctr_high=-1)
 def pick_validate_data(low_steer, high_steer):
     low_bound = len(low_steer)
     high_bound = len(high_steer)
@@ -73,23 +73,17 @@ def pick_validate_data(low_steer, high_steer):
     if pick_validate_data.ctr_low == -1 and pick_validate_data.ctr_high == -1:
         pick_validate_data.ctr_low = len(low_steer) * 9 / 10
         pick_validate_data.ctr_high = len(high_steer) * 9 / 10
-    if pick_validate_data.ctr_low >= low_bound and pick_validate_data.ctr_high >= high_bound:
+    if pick_validate_data.ctr_low >= low_bound or pick_validate_data.ctr_high >= high_bound:
         pick_validate_data.ctr_low = len(low_steer) * 9 / 10
         pick_validate_data.ctr_high = len(high_steer) * 9 / 10
         return pick_validate_data.ctr_low + pick_validate_data.ctr_high, 0  # Finished processing data
-    if pick_validate_data.ctr_low >= low_bound:
-        pick_validate_data.cur_steer_choice = 1
-    if pick_validate_data.ctr_high >= high_bound:
-        pick_validate_data.cur_steer_choice = 0
 
-    if pick_validate_data.cur_steer_choice == 0:  # with some probability choose a low_steer element
+    if random.random() > 0.5:  # with some probability choose a low_steer element
         choice = low_steer[pick_validate_data.ctr_low]
         pick_validate_data.ctr_low += 1
-        pick_validate_data.cur_steer_choice = 1
     else:
         choice = high_steer[pick_validate_data.ctr_high]
         pick_validate_data.ctr_high += 1
-        pick_validate_data.cur_steer_choice = 0
 
     run_code = choice[3]
     seg_num = choice[0]
@@ -101,32 +95,25 @@ def pick_validate_data(low_steer, high_steer):
                                                                                 require_one=args.require_one)
 
 
-@static_vars(ctr_low=start_ctrl_low, ctr_high=start_ctrl_high, cur_steer_choice=0)
+@static_vars(ctr_low=start_ctrl_low, ctr_high=start_ctrl_high)
 def pick_data(low_steer=None, high_steer=None):
     if low_steer is None and high_steer is None:
-        return pick_data.ctr_low, pick_data.ctr_high, pick_data.cur_steer_choice
+        return pick_data.ctr_low, pick_data.ctr_high
     low_bound = len(low_steer) * 9 / 10
     high_bound = len(high_steer) * 9 / 10
 
-    if pick_data.ctr_low >= low_bound and pick_data.ctr_high >= high_bound:
+    if pick_data.ctr_low >= low_bound or pick_data.ctr_high >= high_bound:
         # Reset counters and say you're done
         pick_data.ctr_low = 0
         pick_data.ctr_high = 0
-        return pick_data.ctr_low + pick_data.ctr_high, 0  # Finished processing data
+        return pick_data.ctr_low + pick_data.ctr_high  # Finished processing data
 
-    if pick_data.ctr_low >= low_bound:
-        pick_data.cur_steer_choice = 1
-    if pick_data.ctr_high >= high_bound:
-        pick_data.cur_steer_choice = 0
-
-    if pick_data.cur_steer_choice == 0:  # with some probability choose a low_steer element
+    if random.random() > 0.5:  # with some probability choose a low_steer element
         choice = low_steer[pick_data.ctr_low]
         pick_data.ctr_low += 1
-        pick_data.cur_steer_choice = 1
     else:
         choice = high_steer[pick_data.ctr_high]
         pick_data.ctr_high += 1
-        pick_data.cur_steer_choice = 0
 
     run_code = choice[3]
     seg_num = choice[0]
@@ -303,8 +290,8 @@ else:
                     sum_counter = 0
 
                 if batch_counter % args.saverate == 0 and batch_counter != 0:
-                    low, high, cur_choice = pick_data()
-                    save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+                    low, high = pick_data()
+                    save_data = {'low_ctr': low, 'high_ctr': high, 'net': net.state_dict(),
                                  'optim': optimizer.state_dict(), 'epoch': cur_epoch}
                     torch.save(save_data, 'save/progress_save_' + str(epoch) + '-' + str(batch_counter))
 
@@ -333,13 +320,13 @@ else:
 
             log_file.write('\nFinish cross validation! Average Validation Error = ' + str(sum / count))
             log_file.flush()
-            save_data = {'low_ctr': 0, 'high_ctr': 0, 'cur_choice': 0, 'net': net.state_dict(),
+            save_data = {'low_ctr': 0, 'high_ctr': 0, 'net': net.state_dict(),
                          'optim': optimizer.state_dict(), 'epoch': cur_epoch}
             torch.save(save_data, 'save/epoch_save_' + str(cur_epoch) + '.' + str(sum / count))
     except Exception as e:  # In case of any exception or error, save the model.
         log_file.write('\nError Recieved while training. Saved model and terminated code:\n' + str(e))
-        low, high, cur_choice = pick_data()
-        save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+        low, high = pick_data()
+        save_data = {'low_ctr': low, 'high_ctr': high, 'net': net.state_dict(),
                      'optim': optimizer.state_dict(), 'epoch': cur_epoch}
         torch.save(save_data, 'interrupt_save')
         print('\nError Recieved, Saved model!')
