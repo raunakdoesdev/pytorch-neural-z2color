@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.utils as nnutils
 from torch.autograd import Variable
-
 from libs.import_utils import *
 from nets.z2_color_batchnorm import Z2Color
 # Define Arguments and Default Values
@@ -220,8 +219,6 @@ load_full_run_data()
 print()
 print('Loading steer data')
 low_steer, high_steer = load_steer_data()
-random.shuffle(low_steer)
-random.shuffle(high_steer)
 
 net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
 
