@@ -6,10 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.utils as nnutils
 from torch.autograd import Variable
-
 from libs.import_utils import *
-from nets.z2_color import Z2Color
-
+from nets.z2_color_batchnorm import Z2Color
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--validate', type=str, metavar='PATH',
@@ -130,7 +128,7 @@ def get_camera_data(data):
         for camera in ('left', 'right'):
             for t in range(args.nframes):
                 raw_input_data = torch.from_numpy(data[camera][t][:, :, c]).cuda().float()
-                camera_data = torch.cat((camera_data, raw_input_data.unsqueeze(2) / 255.), 2)  # Adds channel
+                camera_data = torch.cat((camera_data, (raw_input_data.unsqueeze(2) / 255.) - 0.5), 2)  # Adds channel
 
     # Switch dimensions to match neural net
     camera_data = torch.transpose(camera_data, 0, 2)
@@ -237,6 +235,11 @@ if args.validate is not None:
 
         # Run neural net + Calculate Loss
         outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+
+        print('Outputs:')
+        print(outputs)
+        print('Labels:')
+        print(batch_labels)
 
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
