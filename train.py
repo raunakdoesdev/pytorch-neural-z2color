@@ -236,11 +236,6 @@ if args.validate is not None:
         # Run neural net + Calculate Loss
         outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
 
-        print('Outputs:')
-        print(outputs)
-        print('Labels:')
-        print(batch_labels)
-
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
         sum += loss.data[0]
