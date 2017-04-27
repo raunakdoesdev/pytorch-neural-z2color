@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.utils as nnutils
 from torch.autograd import Variable
 from libs.import_utils import *
-from nets.z2_color_batchnorm import Z2Color
+from nets.z2_color import Z2Color
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--validate', type=str, metavar='PATH',
