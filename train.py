@@ -4,10 +4,11 @@ import random
 
 import torch
 import torch.nn as nn
+import torch.nn.utils as nnutils
 from torch.autograd import Variable
 
 from libs.import_utils import *
-from nets.batchnorm import Z2Color
+from nets.z2_color import Z2Color
 
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -19,13 +20,13 @@ parser.add_argument('--resume', type=str, metavar='PATH',
                     help='path to model for training resume')
 parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps with images.')
 parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
-parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2'], type=str, nargs='+',
+parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
-parser.add_argument('--require_one', default=[], type=str, nargs='+',
+parser.add_argument('--require-one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
-parser.add_argument('--cuda_device', default=0, type=int, help='Cuda GPU ID to use for GPU Acceleration.')
-parser.add_argument('--batch-size', default=5, type=int, help='Number of datapoints in a mini-batch for training.')
-parser.add_argument('--saverate', default=10000, type=int,
+parser.add_argument('--cuda-device', default=0, type=int, help='Cuda GPU ID to use for GPU Acceleration.')
+parser.add_argument('--batch-size', default=64, type=int, help='Number of datapoints in a mini-batch for training.')
+parser.add_argument('--saverate', default=700, type=int,
                     help='Number of batches after which a progress save is done.')
 parser.add_argument('--skip', help='Skips first validation (useful for restoring epoch saves)', action='store_true')
 args = parser.parse_args()
@@ -67,7 +68,7 @@ def load_steer_data():
 def instantiate_net():
     net = Z2Color().cuda()
     criterion = nn.MSELoss().cuda()  # define loss function
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.005, momentum=0.0001)
+    optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
     return net, criterion, optimizer
 
 
@@ -242,6 +243,7 @@ if args.validate is not None:
     sum = 0
     count = 0
     notFinished = True  # Checks if finished with dataset
+    net.eval()
     while notFinished:
         # Load batch
         progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
@@ -249,7 +251,7 @@ if args.validate is not None:
             break
 
         # Run neural net + Calculate Loss
-        outputs = net(Variable(batch_input), Variable(batch_metadata))
+        outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
 
         # criterion = torch.nn.MSELoss()
         loss = criterion(outputs, Variable(batch_labels))
@@ -272,7 +274,12 @@ else:
     log_file = open('logs/log_file' + str(datetime.datetime.now().isoformat()), 'w')
     log_file.truncate()
     try:
+    
         for epoch in range(cur_epoch, 20):  # Iterate through epochs
+
+            random.shuffle(low_steer)
+            random.shuffle(high_steer)
+
             cur_epoch = epoch
             # Training
             notFinished = True  # Checks if finished with dataset
@@ -281,6 +288,7 @@ else:
             sum = 0
             sum_counter = 0
             start = time.time()
+            net.train()
             while notFinished:
                 # Load batch
                 progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(args.batch_size,
@@ -297,6 +305,7 @@ else:
 
                 # Backprop
                 loss.backward()
+                nnutils.clip_grad_norm(net.parameters(), 1.0)
                 optimizer.step()
 
                 # Update progress bar
@@ -305,7 +314,7 @@ else:
                 sum_counter += 1
                 sum += loss.data[0]
 
-                if sum_counter == 1000:
+                if sum_counter == 80:
                     log_file.write(
                         '\n' + str(batch_counter) + ',' + str(sum / sum_counter))
                     log_file.flush()
@@ -317,36 +326,34 @@ else:
                     save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
                                  'optim': optimizer.state_dict(), 'epoch': cur_epoch}
                     torch.save(save_data, 'save/progress_save_' + str(epoch) + '-' + str(batch_counter))
+            sum = 0
+            count = 0
+            notFinished = True  # Checks if finished with dataset
+            pb = ProgressBar((len(low_steer) + len(high_steer)) / 10)
+            net.eval()
+            while notFinished:
+                # Load batch
+                progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
 
-            if not skip_first_validation:
-                sum = 0
-                count = 0
-                notFinished = True  # Checks if finished with dataset
-                pb = ProgressBar((len(low_steer) + len(high_steer)) / 10)
-                while notFinished:
-                    # Load batch
-                    progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
+                if not notFinished:
+                    break
 
-                    if not notFinished:
-                        break
+                # Run neural net + Calculate Loss
+                outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+                loss = criterion(outputs, Variable(batch_labels))
+                count += 1
+                sum += loss.data[0]
 
-                    # Run neural net + Calculate Loss
-                    outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
-                    loss = criterion(outputs, Variable(batch_labels))
-                    count += 1
-                    sum += loss.data[0]
+                if count % 1000 == 0:
+                    pb.animate(progress - 9 * (len(low_steer) + len(high_steer)) / 10)
+                    log_file.write('\nAverage Validation Loss,' + str(sum / count))
+                    log_file.flush()
 
-                    if count % 1000 == 0:
-                        pb.animate(progress - 9 * (len(low_steer) + len(high_steer)) / 10)
-                        log_file.write('\nAverage Validation Loss,' + str(sum / count))
-                        log_file.flush()
-
-                log_file.write('\nFinish cross validation! Average Validation Error = ' + str(sum / count))
-                log_file.flush()
-                save_data = {'low_ctr': 0, 'high_ctr': 0, 'cur_choice': 0, 'net': net.state_dict(),
-                             'optim': optimizer.state_dict(), 'epoch': cur_epoch}
-                torch.save(save_data, 'save/epoch_save_' + str(cur_epoch) + '.' + str(sum / count))
-            skip_first_validation = False
+            log_file.write('\nFinish cross validation! Average Validation Error = ' + str(sum / count))
+            log_file.flush()
+            save_data = {'low_ctr': 0, 'high_ctr': 0, 'cur_choice': 0, 'net': net.state_dict(),
+                         'optim': optimizer.state_dict(), 'epoch': cur_epoch}
+            torch.save(save_data, 'save/epoch_save_' + str(cur_epoch) + '.' + str(sum / count))
     except Exception as e:  # In case of any exception or error, save the model.
         log_file.write('\nError Recieved while training. Saved model and terminated code:\n' + str(e))
         low, high, cur_choice = pick_data()

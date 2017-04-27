@@ -5,9 +5,12 @@ import torch.nn.init as initialization
 from torch.autograd import Variable
 
 
-class Z2Color(nn.Module):
+class Z2ColorGRU(nn.Module):
     def __init__(self):
-        super(Z2Color, self).__init__()
+        super(Z2ColorGRU, self).__init__()
+
+        self.lr = 0.005
+        self.momentum = 0.0001
 
         self.conv1 = nn.Conv2d(in_channels=12, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
@@ -18,7 +21,8 @@ class Z2Color(nn.Module):
         self.conv2_pool_drop = nn.Dropout2d(p=0.0)
         self.ip1 = nn.Linear(in_features=2560, out_features=512)
         self.ip1_drop = nn.Dropout(p=0.0)
-        self.ip2 = nn.Linear(in_features=512, out_features=20)
+        self.gru1 = nn.GRU(input_size=256, hidden_size=16, num_layers=2, batch_first=True)
+        self.ip2 = nn.Linear(in_features=32, out_features=20)
 
         # Initialize weights
         nn.init.normal(self.conv1.weight, std=0.00001)
@@ -45,6 +49,11 @@ class Z2Color(nn.Module):
         # ip1
         x = self.ip1_drop(F.relu(self.ip1(x)))
 
+        # gru1
+        x = x.view(-1, 2, 256)
+        x = self.gru1(x)[0]
+        x = x.contiguous().view(-1, 2 * 16)
+
         # ip2
         x = self.ip2(x)
         
@@ -52,7 +61,7 @@ class Z2Color(nn.Module):
 
 
 def unit_test():
-    test_net = Z2Color()
+    test_net = Z2ColorGRU()
     a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 6, 13, 26)))
     print (a)
 
