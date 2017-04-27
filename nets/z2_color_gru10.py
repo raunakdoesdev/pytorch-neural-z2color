@@ -9,6 +9,8 @@ class Z2ColorGRU10(nn.Module):
     def __init__(self):
         super(Z2ColorGRU10, self).__init__()
 
+        self.lr = 0.005
+        self.momentum = 0.0001
         self.N_FRAMES = 10
         self.N_STEPS = 18
 
