@@ -104,7 +104,7 @@ def pick_data(low_steer_train=None, high_steer_train=None, low_steer_val=None, h
         # Reset counters and say you're done
         pick_data.ctr_low = 0
         pick_data.ctr_high = 0
-        return pick_data.ctr_low + pick_data.ctr_high  # Finished processing data
+        return pick_data.ctr_low + pick_data.ctr_high, 0  # Finished processing data
 
     if random.random() > 0.5:  # with some probability choose a low_steer element
         choice = low_steer_train[pick_data.ctr_low]
