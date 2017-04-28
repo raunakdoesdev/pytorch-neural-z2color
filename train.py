@@ -74,7 +74,7 @@ def pick_validate_data(low_steer_train, high_steer_train, low_steer_val, high_st
     if pick_validate_data.ctr_low >= low_bound or pick_validate_data.ctr_high >= high_bound:
         pick_validate_data.ctr_low = 0
         pick_validate_data.ctr_high = 0
-        return pick_validate_data.ctr_low + pick_validate_data.ctr_high  # Finished processing data
+        return pick_validate_data.ctr_low + pick_validate_data.ctr_high, 0  # Finished processing data
 
     if random.random() > 0.5:  # with some probability choose a low_steer element
         choice = low_steer_val[pick_validate_data.ctr_low]
