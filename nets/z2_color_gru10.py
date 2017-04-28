@@ -16,13 +16,13 @@ class Z2ColorGRU10(nn.Module):
 
         self.conv1 = nn.Conv2d(in_channels=6 * self.N_FRAMES, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.conv1_pool_drop = nn.Dropout2d(p=0.0)
+        self.conv1_pool_norm = nn.Dropout2d(96)
 
         self.conv2 = nn.Conv2d(in_channels=102, out_channels=256, kernel_size=3, stride=2, groups=2)
         self.conv2_pool = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.conv2_pool_drop = nn.Dropout2d(p=0.0)
+        self.conv2_pool_norm = nn.BatchNorm2d(256)
         self.ip1 = nn.Linear(in_features=2560, out_features=256 * self.N_FRAMES)
-        self.ip1_drop = nn.Dropout(p=0.0)
+        self.ip1_norm = nn.BatchNorm21(256 * self.N_FRAMES)
         self.gru1 = nn.GRU(input_size=256, hidden_size=16, num_layers=2, batch_first=True)
         self.ip2 = nn.Linear(in_features=16 * self.N_FRAMES, out_features=2 * self.N_STEPS)
 
@@ -38,18 +38,18 @@ class Z2ColorGRU10(nn.Module):
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv1_pool(x)
-        x = self.conv1_pool_drop(x)
+        x = self.conv1_pool_norm(x)
 
         # metadata_concat
         x = torch.cat((metadata, x), 1)
 
         # conv2
-        x = self.conv2_pool_drop(self.conv2_pool(F.relu(self.conv2(x))))
+        x = self.conv2_pool_norm(self.conv2_pool(F.relu(self.conv2(x))))
         
         x = x.view(-1, 2560)
 
         # ip1
-        x = self.ip1_drop(F.relu(self.ip1(x)))
+        x = self.ip1_norm(F.relu(self.ip1(x)))
 
         # gru1
         x = x.view(-1, self.N_FRAMES, 256)
