@@ -204,12 +204,12 @@ print('Loading steer data')
 low_steer, high_steer = load_steer_data()
 random.shuffle(low_steer)
 random.shuffle(high_steer)
-low_steer_train = low_steer[:int(0.001*len(low_steer))]
-high_steer_train = high_steer[:int(0.001*len(high_steer))]
-low_steer_val = low_steer[int(0.001*len(low_steer)):]
-high_steer_val = high_steer[int(0.001*len(high_steer)):]
+low_steer_train = low_steer[:int(0.9*len(low_steer))]
+high_steer_train = high_steer[:int(0.9*len(high_steer))]
+low_steer_val = low_steer[int(0.9*len(low_steer)):]
+high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
-net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
+net, criterion, optimizer = instantiate_net()
 
 cur_epoch = 0
 if args.resume is not None:
@@ -297,7 +297,6 @@ else:
                                  'optim': optimizer.state_dict(), 'epoch': cur_epoch}
                     torch.save(save_data, 'save/progress_save_' + str(epoch) + '-' + str(batch_counter))
 
-            print("MADE IT TO THE END OF TRAINING")
             sum = 0
             count = 0
             notFinished = True  # Checks if finished with dataset
