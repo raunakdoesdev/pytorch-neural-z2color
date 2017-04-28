@@ -22,7 +22,7 @@ class Z2ColorGRU10(nn.Module):
         self.conv2_pool = nn.MaxPool2d(kernel_size=3, stride=2)
         self.conv2_pool_norm = nn.BatchNorm2d(256)
         self.ip1 = nn.Linear(in_features=2560, out_features=256 * self.N_FRAMES)
-        self.ip1_norm = nn.BatchNorm21(256 * self.N_FRAMES)
+        self.ip1_norm = nn.BatchNorm2d(256 * self.N_FRAMES)
         self.gru1 = nn.GRU(input_size=256, hidden_size=16, num_layers=2, batch_first=True)
         self.ip2 = nn.Linear(in_features=16 * self.N_FRAMES, out_features=2 * self.N_STEPS)
 
