@@ -8,6 +8,7 @@ import torch.nn.utils as nnutils
 from torch.autograd import Variable
 from libs.import_utils import *
 from nets.z2_color import Z2Color
+
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--validate', type=str, metavar='PATH',
@@ -16,8 +17,6 @@ parser.add_argument('--validate', type=str, metavar='PATH',
 #                     help='Skip the first validation (if restoring an end of epoch save file)')
 parser.add_argument('--resume', type=str, metavar='PATH',
                     help='path to model for training resume')
-parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps with images.')
-parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
 parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
 parser.add_argument('--require-one', default=[], type=str, nargs='+',
@@ -87,8 +86,8 @@ def pick_validate_data(low_steer_train, high_steer_train, low_steer_val, high_st
     seg_num = choice[0]
     offset = choice[1]
 
-    return (pick_validate_data.ctr_high + pick_validate_data.ctr_low), get_data(run_code, seg_num, offset, args.nsteps,
-                                                                                offset + 0, args.nframes,
+    return (pick_validate_data.ctr_high + pick_validate_data.ctr_low), get_data(run_code, seg_num, offset, net.N_STEPS,
+                                                                                offset + 0, net.N_FRAMES,
                                                                                 ignore=args.ignore,
                                                                                 require_one=args.require_one)
 
@@ -117,8 +116,8 @@ def pick_data(low_steer_train=None, high_steer_train=None, low_steer_val=None, h
     seg_num = choice[0]
     offset = choice[1]
 
-    return (pick_data.ctr_high + pick_data.ctr_low), get_data(run_code, seg_num, offset, args.nsteps, offset + 0,
-                                                              args.nframes, ignore=args.ignore,
+    return (pick_data.ctr_high + pick_data.ctr_low), get_data(run_code, seg_num, offset, net.N_STEPS, offset + 0,
+                                                              net.N_FRAMES, ignore=args.ignore,
                                                               require_one=args.require_one)
 
 
@@ -126,7 +125,7 @@ def get_camera_data(data):
     camera_data = torch.FloatTensor().cuda()
     for c in range(3):
         for camera in ('left', 'right'):
-            for t in range(args.nframes):
+            for t in range(net.N_FRAMES):
                 raw_input_data = torch.from_numpy(data[camera][t][:, :, c]).cuda().float()
                 camera_data = torch.cat((camera_data, (raw_input_data.unsqueeze(2) / 255.) - 0.5), 2)  # Adds channel
 
@@ -158,8 +157,8 @@ def get_metadata(data):
 
 
 def get_labels(data):
-    steer = torch.from_numpy(data['steer'][-args.nsteps:]).cuda().float() / 99.
-    motor = torch.from_numpy(data['motor'][-args.nsteps:]).cuda().float() / 99.
+    steer = torch.from_numpy(data['steer'][-net.N_STEPS:]).cuda().float() / 99.
+    motor = torch.from_numpy(data['motor'][-net.N_STEPS:]).cuda().float() / 99.
 
     return torch.cat((steer, motor), 0)
 

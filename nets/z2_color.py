@@ -11,6 +11,8 @@ class Z2Color(nn.Module):
 
         self.lr = 0.005
         self.momentum = 0.0001
+        self.N_FRAMES = 2
+        self.N_STEPS = 10
 
         self.conv1 = nn.Conv2d(in_channels=12, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
