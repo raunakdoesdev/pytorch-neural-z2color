@@ -17,7 +17,7 @@ parser.add_argument('--validate', type=str, metavar='PATH',
 #                     help='Skip the first validation (if restoring an end of epoch save file)')
 parser.add_argument('--resume', type=str, metavar='PATH',
                     help='path to model for training resume')
-parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth'], type=str, nargs='+',
+parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth', 'follow'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
 parser.add_argument('--require-one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
