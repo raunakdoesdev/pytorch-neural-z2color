@@ -7,7 +7,8 @@ import torch.nn as nn
 import torch.nn.utils as nnutils
 from torch.autograd import Variable
 from libs.import_utils import *
-from nets.z2_color_batchnorm import Z2Color
+from nets.z2_color import Z2Color
+
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--validate', type=str, metavar='PATH',
@@ -16,9 +17,7 @@ parser.add_argument('--validate', type=str, metavar='PATH',
 #                     help='Skip the first validation (if restoring an end of epoch save file)')
 parser.add_argument('--resume', type=str, metavar='PATH',
                     help='path to model for training resume')
-parser.add_argument('--nframes', default=2, type=int, help='Number of timesteps with images.')
-parser.add_argument('--nsteps', default=10, type=int, help='Number of timesteps with non-image data.')
-parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth'], type=str, nargs='+',
+parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth', 'follow'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
 parser.add_argument('--require-one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
@@ -63,79 +62,62 @@ def instantiate_net():
     return net, criterion, optimizer
 
 
-@static_vars(ctr_low=-1, ctr_high=-1, cur_steer_choice=0)
-def pick_validate_data(low_steer, high_steer):
-    low_bound = len(low_steer)
-    high_bound = len(high_steer)
+@static_vars(ctr_low=-1, ctr_high=-1)
+def pick_validate_data(low_steer_train, high_steer_train, low_steer_val, high_steer_val):
+    low_bound = len(low_steer_val)
+    high_bound = len(high_steer_val)
 
     if pick_validate_data.ctr_low == -1 and pick_validate_data.ctr_high == -1:
-        pick_validate_data.ctr_low = len(low_steer) * 9 / 10
-        pick_validate_data.ctr_high = len(high_steer) * 9 / 10
-    if pick_validate_data.ctr_low >= low_bound and pick_validate_data.ctr_high >= high_bound:
-        pick_validate_data.ctr_low = len(low_steer) * 9 / 10
-        pick_validate_data.ctr_high = len(high_steer) * 9 / 10
+        pick_validate_data.ctr_low = 0
+        pick_validate_data.ctr_high = 0
+    if pick_validate_data.ctr_low >= low_bound or pick_validate_data.ctr_high >= high_bound:
+        pick_validate_data.ctr_low = 0
+        pick_validate_data.ctr_high = 0
         return pick_validate_data.ctr_low + pick_validate_data.ctr_high, 0  # Finished processing data
-    if pick_validate_data.ctr_low >= low_bound:
-        pick_validate_data.cur_steer_choice = 1
-    if pick_validate_data.ctr_high >= high_bound:
-        pick_validate_data.cur_steer_choice = 0
 
-    if pick_validate_data.cur_steer_choice == 0:  # with some probability choose a low_steer element
-        choice = low_steer[pick_validate_data.ctr_low]
+    if random.random() > 0.5:  # with some probability choose a low_steer element
+        choice = low_steer_val[pick_validate_data.ctr_low]
         pick_validate_data.ctr_low += 1
-        pick_validate_data.cur_steer_choice = 1
     else:
-        choice = high_steer[pick_validate_data.ctr_high]
+        choice = high_steer_val[pick_validate_data.ctr_high]
         pick_validate_data.ctr_high += 1
-        pick_validate_data.cur_steer_choice = 0
 
     run_code = choice[3]
     seg_num = choice[0]
     offset = choice[1]
 
-    return (pick_validate_data.ctr_high + pick_validate_data.ctr_low), get_data(run_code, seg_num, offset, args.nsteps,
-                                                                                offset + 0, args.nframes,
+    return (pick_validate_data.ctr_high + pick_validate_data.ctr_low), get_data(run_code, seg_num, offset, net.N_STEPS,
+                                                                                offset + 0, net.N_FRAMES,
                                                                                 ignore=args.ignore,
                                                                                 require_one=args.require_one)
 
 
-@static_vars(ctr_low=start_ctrl_low, ctr_high=start_ctrl_high, cur_steer_choice=0)
-def pick_data(low_steer=None, high_steer=None):
-    if low_steer is None and high_steer is None:
-        return pick_data.ctr_low, pick_data.ctr_high, pick_data.cur_steer_choice
-    low_bound = len(low_steer) * 9 / 10
-    high_bound = len(high_steer) * 9 / 10
+@static_vars(ctr_low=start_ctrl_low, ctr_high=start_ctrl_high)
+def pick_data(low_steer_train=None, high_steer_train=None, low_steer_val=None, high_steer_val=None):
+    if low_steer_train is None and high_steer_train is None:
+        return pick_data.ctr_low, pick_data.ctr_high
+    low_bound = len(low_steer_train)
+    high_bound = len(high_steer_train)
 
-    if pick_data.ctr_low >= low_bound and pick_data.ctr_high >= high_bound:
+    if pick_data.ctr_low >= low_bound or pick_data.ctr_high >= high_bound:
         # Reset counters and say you're done
         pick_data.ctr_low = 0
         pick_data.ctr_high = 0
         return pick_data.ctr_low + pick_data.ctr_high, 0  # Finished processing data
 
-    if pick_data.ctr_low >= low_bound:
-        pick_data.ctr_low = 0
-        pick_data.ctr_high = 0
-        return pick_data.ctr_low + pick_data.ctr_high, 0  # Finished processing data
-    if pick_data.ctr_high >= high_bound:
-        pick_data.ctr_low = 0
-        pick_data.ctr_high = 0
-        return pick_data.ctr_low + pick_data.ctr_high, 0  # Finished processing data
-
-    if pick_data.cur_steer_choice == 0:  # with some probability choose a low_steer element
-        choice = low_steer[pick_data.ctr_low]
+    if random.random() > 0.5:  # with some probability choose a low_steer element
+        choice = low_steer_train[pick_data.ctr_low]
         pick_data.ctr_low += 1
-        pick_data.cur_steer_choice = 1
     else:
-        choice = high_steer[pick_data.ctr_high]
+        choice = high_steer_train[pick_data.ctr_high]
         pick_data.ctr_high += 1
-        pick_data.cur_steer_choice = 0
 
     run_code = choice[3]
     seg_num = choice[0]
     offset = choice[1]
 
-    return (pick_data.ctr_high + pick_data.ctr_low), get_data(run_code, seg_num, offset, args.nsteps, offset + 0,
-                                                              args.nframes, ignore=args.ignore,
+    return (pick_data.ctr_high + pick_data.ctr_low), get_data(run_code, seg_num, offset, net.N_STEPS, offset + 0,
+                                                              net.N_FRAMES, ignore=args.ignore,
                                                               require_one=args.require_one)
 
 
@@ -143,7 +125,7 @@ def get_camera_data(data):
     camera_data = torch.FloatTensor().cuda()
     for c in range(3):
         for camera in ('left', 'right'):
-            for t in range(args.nframes):
+            for t in range(net.N_FRAMES):
                 raw_input_data = torch.from_numpy(data[camera][t][:, :, c]).cuda().float()
                 camera_data = torch.cat((camera_data, (raw_input_data.unsqueeze(2) / 255.) - 0.5), 2)  # Adds channel
 
@@ -175,8 +157,8 @@ def get_metadata(data):
 
 
 def get_labels(data):
-    steer = torch.from_numpy(data['steer'][-args.nsteps:]).cuda().float() / 99.
-    motor = torch.from_numpy(data['motor'][-args.nsteps:]).cuda().float() / 99.
+    steer = torch.from_numpy(data['steer'][-net.N_STEPS:]).cuda().float() / 99.
+    motor = torch.from_numpy(data['motor'][-net.N_STEPS:]).cuda().float() / 99.
 
     return torch.cat((steer, motor), 0)
 
@@ -189,7 +171,7 @@ def get_batch_data(batch_size, data_function):
     for batch in range(batch_size):  # Construct batch
         data = None
         while 'data' not in locals() or data is None:
-            progress, data = data_function(low_steer, high_steer)
+            progress, data = data_function(low_steer_train, high_steer_train, low_steer_val, high_steer_val)
 
         if data == 0:  # If out of data, return done and skip batch
             return progress, False, None, None, None
@@ -219,8 +201,14 @@ load_full_run_data()
 print()
 print('Loading steer data')
 low_steer, high_steer = load_steer_data()
+random.shuffle(low_steer)
+random.shuffle(high_steer)
+low_steer_train = low_steer[:int(0.9*len(low_steer))]
+high_steer_train = high_steer[:int(0.9*len(high_steer))]
+low_steer_val = low_steer[int(0.9*len(low_steer)):]
+high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
-net, criterion, optimizer = instantiate_net()  # TODO: Load neural net from file
+net, criterion, optimizer = instantiate_net()
 
 cur_epoch = 0
 if args.resume is not None:
@@ -237,8 +225,8 @@ if args.validate is not None:
     notFinished = True  # Checks if finished with dataset
     net.eval()
     while notFinished:
-        random.shuffle(low_steer)
-        random.shuffle(high_steer)
+        random.shuffle(low_steer_val)
+        random.shuffle(high_steer_val)
         # Load batch
         progress, notFinished, batch_input, batch_metadata, batch_labels = get_batch_data(1, pick_validate_data)
         if not notFinished:
@@ -246,11 +234,6 @@ if args.validate is not None:
 
         # Run neural net + Calculate Loss
         outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
-
-        print('Outputs:')
-        print(outputs)
-        print('Labels:')
-        print(batch_labels)
 
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
@@ -264,12 +247,12 @@ else:
     log_file.truncate()
     try:
         for epoch in range(cur_epoch, 10):  # Iterate through epochs
-            random.shuffle(low_steer)
-            random.shuffle(high_steer)
             cur_epoch = epoch
             # Training
             notFinished = True  # Checks if finished with dataset
-            pb = ProgressBar(9 * (len(low_steer) + len(high_steer)) / 10)
+            random.shuffle(low_steer_train)
+            random.shuffle(high_steer_train)
+            pb = ProgressBar(len(low_steer_train) + len(high_steer_train))
             batch_counter = 0
             sum = 0
             sum_counter = 0
@@ -308,15 +291,15 @@ else:
                     sum_counter = 0
 
                 if batch_counter % args.saverate == 0 and batch_counter != 0:
-                    low, high, cur_choice = pick_data()
-                    save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+                    low, high = pick_data()
+                    save_data = {'low_ctr': low, 'high_ctr': high, 'net': net.state_dict(),
                                  'optim': optimizer.state_dict(), 'epoch': cur_epoch}
                     torch.save(save_data, 'save/progress_save_' + str(epoch) + '-' + str(batch_counter))
 
             sum = 0
             count = 0
             notFinished = True  # Checks if finished with dataset
-            pb = ProgressBar((len(low_steer) + len(high_steer)) / 10)
+            pb = ProgressBar(len(low_steer_val) + len(high_steer_val))
             net.eval()
             while notFinished:
                 # Load batch
@@ -332,19 +315,19 @@ else:
                 sum += loss.data[0]
 
                 if count % 1000 == 0:
-                    pb.animate(progress - 9 * (len(low_steer) + len(high_steer)) / 10)
+                    pb.animate(progress)
                     log_file.write('\nAverage Validation Loss,' + str(sum / count))
                     log_file.flush()
 
             log_file.write('\nFinish cross validation! Average Validation Error = ' + str(sum / count))
             log_file.flush()
-            save_data = {'low_ctr': 0, 'high_ctr': 0, 'cur_choice': 0, 'net': net.state_dict(),
+            save_data = {'low_ctr': 0, 'high_ctr': 0, 'net': net.state_dict(),
                          'optim': optimizer.state_dict(), 'epoch': cur_epoch}
             torch.save(save_data, 'save/epoch_save_' + str(cur_epoch) + '.' + str(sum / count))
     except Exception as e:  # In case of any exception or error, save the model.
         log_file.write('\nError Recieved while training. Saved model and terminated code:\n' + str(e))
-        low, high, cur_choice = pick_data()
-        save_data = {'low_ctr': low, 'high_ctr': high, 'cur_choice': cur_choice, 'net': net.state_dict(),
+        low, high = pick_data()
+        save_data = {'low_ctr': low, 'high_ctr': high, 'net': net.state_dict(),
                      'optim': optimizer.state_dict(), 'epoch': cur_epoch}
         torch.save(save_data, 'interrupt_save')
         print('\nError Recieved, Saved model!')

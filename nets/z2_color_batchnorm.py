@@ -5,12 +5,14 @@ import torch.nn.init as initialization
 from torch.autograd import Variable
 
 
-class Z2Color(nn.Module):
+class Z2ColorBatchNorm(nn.Module):
     def __init__(self):
-        super(Z2Color, self).__init__()
+        super(Z2ColorBatchNorm, self).__init__()
 
         self.lr = 0.1
         self.momentum = 0.1
+        self.N_FRAMES = 2
+        self.N_STEPS = 10
 
         self.conv1 = nn.Conv2d(in_channels=12, out_channels=96, kernel_size=11, stride=3, groups=1)
         self.conv1_pool = nn.MaxPool2d(kernel_size=3, stride=2)
@@ -55,7 +57,7 @@ class Z2Color(nn.Module):
 
 
 def unit_test():
-    test_net = Z2Color()
+    test_net = Z2ColorBatchNorm()
     a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 6, 13, 26)))
     print (a)
 
