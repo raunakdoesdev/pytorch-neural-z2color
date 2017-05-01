@@ -108,7 +108,4 @@ def get_data(run_code_num, seg_num, offset, slen, img_offset, img_slen, ignore=[
         'right': right_images,
         'labels': labels
     }
-
-    if motors[-1] > 40 and motors[-1] < 60:
-        return None
     return data
