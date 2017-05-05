@@ -37,13 +37,13 @@ class SqueezeNet(nn.Module):
         self.N_FRAMES = 2
         self.N_STEPS = 10
         self.pre_metadata_features = nn.Sequential(
-            nn.Conv2d(24, 64, kernel_size=3, stride=2),
+            nn.Conv2d(12, 64, kernel_size=3, stride=2),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
             Fire(64, 16, 64, 64),            
             )
         self.post_metadata_features = nn.Sequential(
-            Fire(128, 16, 64, 64),
+            Fire(256, 16, 64, 64),
             nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
             Fire(128, 32, 128, 128),
             Fire(256, 32, 128, 128),
@@ -71,14 +71,14 @@ class SqueezeNet(nn.Module):
                     m.bias.data.zero_()
 
     def forward(self, x, metadata):
-        x = torch.cat((x, metadata), 1)
         x = self.pre_metadata_features(x)
+        x = torch.cat((x, metadata), 1)
         x = self.classifier(x)
         return x.view(x.size(0), self.N_STEPS * 2)
 
 def unit_test():
     test_net = SqueezeNet()
-    a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 12, 94, 168)))
+    a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 128, 23, 41)))    
     print(a)
 
 unit_test()
