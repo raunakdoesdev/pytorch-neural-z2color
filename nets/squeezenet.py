@@ -54,7 +54,7 @@ class SqueezeNet(nn.Module):
             Fire(512, 64, 256, 256),
         )
         final_conv = nn.Conv2d(256, self.N_STEPS * 2, kernel_size=1)
-        self.classifier = nn.Sequential(
+        self.final_output = nn.Sequential(
             nn.Dropout(p=0.5),
             final_conv,
             nn.ReLU(inplace=True),
@@ -73,7 +73,7 @@ class SqueezeNet(nn.Module):
     def forward(self, x, metadata):
         x = self.pre_metadata_features(x)
         x = torch.cat((x, metadata), 1)
-        x = self.classifier(x)
+        x = self.final_output(x)
         x = x.view(x.size(0), -1)
         return x
 
