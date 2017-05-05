@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.init as init
+from torch.autograd import Variable
 
 class Fire(nn.Module):
 
@@ -71,12 +72,12 @@ class SqueezeNet(nn.Module):
 
     def forward(self, x, metadata):
         x = self.pre_metadata_features(x)
-        print(x.size())
+        x = torch.cat((x, metadata), 1)
         x = self.classifier(x)
         return x.view(x.size(0), self.N_STEPS * 2)
 
 def unit_test():
     test_net = SqueezeNet()
-    a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 6, 13, 26)))
+    a = test_net(Variable(torch.randn(5, 12, 94, 168)), Variable(torch.randn(5, 128, 23, 41))
     print(a)
 
