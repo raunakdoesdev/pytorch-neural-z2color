@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.utils as nnutils
 from torch.autograd import Variable
 from libs.import_utils import *
-from nets.z2_color import Z2Color
+from nets.squeezenet import SqueezeNet
 
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -17,7 +17,7 @@ parser.add_argument('--validate', type=str, metavar='PATH',
 #                     help='Skip the first validation (if restoring an end of epoch save file)')
 parser.add_argument('--resume', type=str, metavar='PATH',
                     help='path to model for training resume')
-parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth', 'follow'], type=str, nargs='+',
+parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
 parser.add_argument('--require-one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
@@ -56,7 +56,7 @@ def load_steer_data():
 
 
 def instantiate_net():
-    net = Z2Color().cuda()
+    net = SqueezeNet().cuda()
     criterion = nn.MSELoss().cuda()  # define loss function
     optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
     return net, criterion, optimizer
@@ -138,8 +138,8 @@ def get_camera_data(data):
 
 def get_metadata(data):
     metadata = torch.FloatTensor().cuda()
-    zero_matrix = torch.FloatTensor(1, 13, 26).zero_().cuda()  # Min value matrix
-    one_matrix = torch.FloatTensor(1, 13, 26).fill_(1).cuda()  # Max value matrix
+    zero_matrix = torch.FloatTensor(1, 23, 41).zero_().cuda()  # Min value matrix
+    one_matrix = torch.FloatTensor(1, 23, 41).fill_(1).cuda()  # Max value matrix
 
     for cur_label in ['racing', 'caffe', 'follow', 'direct', 'play', 'furtive']:
         if cur_label == 'caffe':
@@ -151,6 +151,8 @@ def get_metadata(data):
             if data['labels'][cur_label]:
                 metadata = torch.cat((one_matrix, metadata), 0)
             else:
+                metadata = torch.cat((zero_matrix, metadata), 0)
+    for i in range(122):
                 metadata = torch.cat((zero_matrix, metadata), 0)
 
     return metadata
