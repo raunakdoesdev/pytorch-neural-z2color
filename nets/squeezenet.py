@@ -74,7 +74,8 @@ class SqueezeNet(nn.Module):
         x = self.pre_metadata_features(x)
         x = torch.cat((x, metadata), 1)
         x = self.classifier(x)
-        return x.view(x.size(0), self.N_STEPS * 2)
+        x = x.view(x.size(0), -1)
+        return x[:, 0:19]
 
 def unit_test():
     test_net = SqueezeNet()
