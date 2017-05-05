@@ -53,7 +53,7 @@ class SqueezeNet(nn.Module):
             Fire(384, 64, 256, 256),
             Fire(512, 64, 256, 256),
         )
-        final_conv = nn.Conv2d(128, self.N_STEPS * 2, kernel_size=1)
+        final_conv = nn.Conv2d(512, self.N_STEPS * 2, kernel_size=1)
         self.classifier = nn.Sequential(
             nn.Dropout(p=0.5),
             final_conv,
