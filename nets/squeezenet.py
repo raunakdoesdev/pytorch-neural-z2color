@@ -29,9 +29,15 @@ class Fire(nn.Module):
 
 class SqueezeNet(nn.Module):
 
-    def __init__(self, num_classes=12):
+    def __init__(self, num_classes=6):
         super(SqueezeNet, self).__init__()
+
+        self.lr = 0.01
+        self.momentum = 0.01
+        self.N_FRAMES = 2
+        self.N_STEPS = 10
         self.num_classes = num_classes
+
         self.features = nn.Sequential(
             nn.Conv2d(12, 64, kernel_size=3, stride=2),
             nn.ReLU(inplace=True),

@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.utils as nnutils
 from torch.autograd import Variable
 from libs.import_utils import *
+from nets.squeezenet import SqueezeNet
 from nets.z2_color import Z2Color
 
 # Define Arguments and Default Values
@@ -53,14 +54,6 @@ def load_steer_data():
     high_steer = load_obj(join(hdf5_segment_metadata_path, 'high_steer'))
     load_steer_data_progress.animate(2)
     return low_steer, high_steer
-
-
-def instantiate_net():
-    net = Z2Color().cuda()
-    criterion = nn.MSELoss().cuda()  # define loss function
-    optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
-    return net, criterion, optimizer
-
 
 @static_vars(ctr_low=-1, ctr_high=-1)
 def pick_validate_data(low_steer_train, high_steer_train, low_steer_val, high_steer_val):
@@ -208,7 +201,11 @@ high_steer_train = high_steer[:int(0.9*len(high_steer))]
 low_steer_val = low_steer[int(0.9*len(low_steer)):]
 high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
-net, criterion, optimizer = instantiate_net()
+net = SqueezeNet().cuda()
+criterion = nn.MSELoss().cuda()  # define loss function
+optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
+
+drive_net = 
 
 cur_epoch = 0
 if args.resume is not None:
