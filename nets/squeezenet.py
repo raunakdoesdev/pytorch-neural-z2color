@@ -43,7 +43,7 @@ class SqueezeNet(nn.Module):
             Fire(64, 16, 64, 64),            
             )
         self.post_metadata_features = nn.Sequential(
-            Fire(128, 16, 64, 64),
+            Fire(256, 16, 64, 64),
             nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
             Fire(128, 32, 128, 128),
             Fire(256, 32, 128, 128),
@@ -53,12 +53,12 @@ class SqueezeNet(nn.Module):
             Fire(384, 64, 256, 256),
             Fire(512, 64, 256, 256),
         )
-        final_conv = nn.Conv2d(256, self.N_STEPS * 2, kernel_size=1)
+        final_conv = nn.Conv2d(512, self.N_STEPS * 2, kernel_size=1)
         self.final_output = nn.Sequential(
             nn.Dropout(p=0.5),
             final_conv,
             nn.ReLU(inplace=True),
-            nn.AvgPool2d(21)
+            nn.AvgPool2d(kernel_size=5, stride=6)
         )
 
         for m in self.modules():
