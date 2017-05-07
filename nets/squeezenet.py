@@ -73,6 +73,7 @@ class SqueezeNet(nn.Module):
     def forward(self, x, metadata):
         x = self.pre_metadata_features(x)
         x = torch.cat((x, metadata), 1)
+        x = self.post_metadata_features(x)
         x = self.final_output(x)
         x = x.view(x.size(0), -1)
         return x
