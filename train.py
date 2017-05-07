@@ -1,4 +1,5 @@
 import argparse
+import traceback
 import datetime
 import random
 
@@ -149,6 +150,15 @@ def get_metadata(data):
 
     return metadata
 
+def get_squeeze_metadata(data):
+    metadata = torch.FloatTensor().cuda()
+    for batch in range(data.size()[0]):
+        one_batch_data = torch.FloatTensor().cuda()
+        for label in range(data.size()[1]):
+            one_batch_data = torch.cat((torch.FloatTensor(1, 1, 13, 26).fill_(data.data[0][label]).cuda(), one_batch_data), 1)
+        metadata = torch.cat((metadata, one_batch_data), 0)
+    return metadata
+    
 
 def get_labels(data):
     steer = torch.from_numpy(data['steer'][-net.N_STEPS:]).cuda().float() / 99.
@@ -233,7 +243,7 @@ if args.validate is not None:
             break
 
         infer_metadata = net(Variable(batch_input))
-        outputs = drive_net(Variable(batch_input), Variable(infer_metadata)).cuda()
+        outputs = drive_net(Variable(batch_input), Variable(get_squeeze_metadata(infer_metadata))).cuda()
 
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
@@ -270,7 +280,7 @@ else:
 
                 # Run neural net + Calculate Loss
                 infer_metadata = net(Variable(batch_input))
-                outputs = drive_net(Variable(batch_input), Variable(infer_metadata)).cuda()
+                outputs = drive_net(Variable(batch_input), Variable(get_squeeze_metadata(infer_metadata))).cuda()
                 loss = criterion(outputs, Variable(batch_labels))
 
                 # Backprop
@@ -311,7 +321,7 @@ else:
 
                 # Run neural net + Calculate Loss
                 infer_metadata = net(Variable(batch_input))
-                outputs = drive_net(Variable(batch_input), Variable(infer_metadata)).cuda()
+                outputs = drive_net(Variable(batch_input), Variable(get_squeeze_metadata(infer_metadata))).cuda()
                 loss = criterion(outputs, Variable(batch_labels))
                 count += 1
                 sum += loss.data[0]
@@ -327,7 +337,7 @@ else:
                          'optim': optimizer.state_dict(), 'epoch': cur_epoch}
             torch.save(save_data, 'save/epoch_save_' + str(cur_epoch) + '.' + str(sum / count))
     except Exception as e:  # In case of any exception or error, save the model.
-        log_file.write('\nError Recieved while training. Saved model and terminated code:\n' + str(e))
+        log_file.write('\nError Recieved while training. Saved model and terminated code:\n' + traceback.format_exc())
         low, high = pick_data()
         save_data = {'low_ctr': low, 'high_ctr': high, 'net': net.state_dict(),
                      'optim': optimizer.state_dict(), 'epoch': cur_epoch}

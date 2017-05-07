@@ -3,4 +3,6 @@ tags
 *.pyc
 tags
 save
+logs
 *~
+interrupt_save
