@@ -9,6 +9,7 @@ from torch.autograd import Variable
 from libs.import_utils import *
 from nets.squeezenet import SqueezeNet
 from nets.z2_color import Z2Color
+from nets.z2_color_batchnorm import Z2ColorBatchNorm
 
 # Define Arguments and Default Values
 parser = argparse.ArgumentParser(description='PyTorch z2_color Training',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -205,7 +206,8 @@ net = SqueezeNet().cuda()
 criterion = nn.MSELoss().cuda()  # define loss function
 optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
 
-drive_net = 
+drive_net = Z2ColorBatchNorm().cuda()
+drive_net.eval() # Evaluate network
 
 cur_epoch = 0
 if args.resume is not None:
