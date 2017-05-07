@@ -207,7 +207,8 @@ criterion = nn.MSELoss().cuda()  # define loss function
 optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
 
 drive_net = Z2ColorBatchNorm().cuda()
-drive_net.eval() # Evaluate network
+drive_net.load_state_dict(torch.load('batch_norm_epoch7')['net'])
+drive_net.eval() # Set network to evaluate mode
 
 cur_epoch = 0
 if args.resume is not None:
@@ -231,8 +232,8 @@ if args.validate is not None:
         if not notFinished:
             break
 
-        # Run neural net + Calculate Loss
-        outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+        infer_metadata = net(Variable(batch_input))
+        outputs = drive_net(Variable(batch_input), Variable(infer_metadata)).cuda()
 
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
@@ -268,7 +269,8 @@ else:
                 optimizer.zero_grad()
 
                 # Run neural net + Calculate Loss
-                outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+                infer_metadata = net(Variable(batch_input))
+                outputs = drive_net(Variable(batch_input), Variable(infer_metadata)).cuda()
                 loss = criterion(outputs, Variable(batch_labels))
 
                 # Backprop
@@ -308,7 +310,8 @@ else:
                     break
 
                 # Run neural net + Calculate Loss
-                outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+                infer_metadata = net(Variable(batch_input))
+                outputs = drive_net(Variable(batch_input), Variable(infer_metadata)).cuda()
                 loss = criterion(outputs, Variable(batch_labels))
                 count += 1
                 sum += loss.data[0]
