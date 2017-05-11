@@ -5,7 +5,7 @@ filename = sys.argv[1]
 weights = torch.load(filename)
 
 for key in weights['net']:
-    weights['net'][key] = weights['net'][key].cuda(device=0)
+    weights['net'][key] = weights['net'][key].cuda(device=int(sys.argv[2]))
 
 newweights = dict()
 newweights['net'] = weights['net']
