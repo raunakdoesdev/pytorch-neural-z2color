@@ -32,7 +32,7 @@ class SqueezeNet(nn.Module):
     def __init__(self, num_classes=6):
         super(SqueezeNet, self).__init__()
 
-        self.lr = 0.01
+        self.lr = 0.001
         self.momentum = 0.01
         self.N_FRAMES = 2
         self.N_STEPS = 10

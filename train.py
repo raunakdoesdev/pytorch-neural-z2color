@@ -214,7 +214,7 @@ high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
 net = SqueezeNet().cuda()
 criterion = nn.MSELoss().cuda()  # define loss function
-optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
+optimizer = torch.optim.Adam(net.parameters(), lr=net.lr)
 
 drive_net = Z2ColorBatchNorm().cuda()
 drive_net.load_state_dict(torch.load('batch_norm_epoch7')['net'])
@@ -285,7 +285,7 @@ else:
 
                 # Backprop
                 loss.backward()
-                nnutils.clip_grad_norm(net.parameters(), 1.0)
+                # nnutils.clip_grad_norm(net.parameters(), 1.0)
                 optimizer.step()
 
                 # Update progress bar
