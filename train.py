@@ -122,13 +122,13 @@ def pick_data(low_steer_train=None, high_steer_train=None, low_steer_val=None, h
 
 
 def get_camera_data(data):
-    camera_data = torch.FloatTensor().cuda()
-    for c in range(3):
+    listoftensors = []
+    for t in range(net.N_FRAMES):
         for camera in ('left', 'right'):
-            for t in range(net.N_FRAMES):
-                raw_input_data = torch.from_numpy(data[camera][t][:, :, c]).cuda().float()
-                camera_data = torch.cat((camera_data, (raw_input_data.unsqueeze(2) / 255.) - 0.5), 2)  # Adds channel
+            listoftensors.append(torch.from_numpy(data[camera][t]))
 
+    camera_data = torch.cat(listoftensors, 2)
+    camera_data = camera_data.cuda().float()/255. - 0.5
     # Switch dimensions to match neural net
     camera_data = torch.transpose(camera_data, 0, 2)
     camera_data = torch.transpose(camera_data, 1, 2)
