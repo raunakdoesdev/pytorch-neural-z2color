@@ -150,15 +150,6 @@ def get_metadata(data):
 
     return metadata
 
-def get_squeeze_metadata(data):
-    metadata = torch.FloatTensor().cuda()
-    for batch in range(data.size()[0]):
-        one_batch_data = torch.FloatTensor().cuda()
-        for label in range(data.size()[1]):
-            one_batch_data = torch.cat((torch.FloatTensor(1, 1, 13, 26).fill_(data.data[0][label]).cuda(), one_batch_data), 1)
-        metadata = torch.cat((metadata, one_batch_data), 0)
-    return metadata
-    
 
 def get_labels(data):
     steer = torch.from_numpy(data['steer'][-net.N_STEPS:]).cuda().float() / 99.
@@ -243,7 +234,15 @@ if args.validate is not None:
             break
 
         infer_metadata = net(Variable(batch_input))
-        outputs = drive_net(Variable(batch_input), Variable(get_squeeze_metadata(infer_metadata))).cuda()
+
+        dim = infer_metadata.size()[0]
+        # Convert metadata
+        infer_metadata = infer_metadata.unsqueeze(2)  # create singular dimension for expand
+        infer_metadata = infer_metadata.expand(dim, 6, 13) # expand each of the rows in the image
+        infer_metadata = infer_metadata.unsqueeze(3)  # create second singular dimension for expand
+        infer_metadata = infer_metadata.expand(dim, 6, 13, 26)  # expand each of the columns in the image
+
+        outputs = drive_net(Variable(batch_input), infer_metadata).cuda()
 
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
@@ -280,7 +279,15 @@ else:
 
                 # Run neural net + Calculate Loss
                 infer_metadata = net(Variable(batch_input))
-                outputs = drive_net(Variable(batch_input), Variable(get_squeeze_metadata(infer_metadata))).cuda()
+
+                dim = infer_metadata.size()[0]
+                # Convert metadata
+                infer_metadata = infer_metadata.unsqueeze(2)  # create singular dimension for expand
+                infer_metadata = infer_metadata.expand(dim, 6, 13) # expand each of the rows in the image
+                infer_metadata = infer_metadata.unsqueeze(3)  # create second singular dimension for expand
+                infer_metadata = infer_metadata.expand(dim, 6, 13, 26)  # expand each of the columns in the image
+
+                outputs = drive_net(Variable(batch_input), infer_metadata).cuda()
                 loss = criterion(outputs, Variable(batch_labels))
 
                 # Backprop
@@ -321,7 +328,14 @@ else:
 
                 # Run neural net + Calculate Loss
                 infer_metadata = net(Variable(batch_input))
-                outputs = drive_net(Variable(batch_input), Variable(get_squeeze_metadata(infer_metadata))).cuda()
+
+                dim = infer_metadata.size()[0]
+                infer_metadata = infer_metadata.unsqueeze(2)  # create singular dimension for expand
+                infer_metadata = infer_metadata.expand(dim, 6, 13) # expand each of the rows in the image
+                infer_metadata = infer_metadata.unsqueeze(3)  # create second singular dimension for expand
+                infer_metadata = infer_metadata.expand(dim, 6, 13, 26)  # expand each of the columns in the image
+
+                outputs = drive_net(Variable(batch_input), infer_metadata).cuda()
                 loss = criterion(outputs, Variable(batch_labels))
                 count += 1
                 sum += loss.data[0]
