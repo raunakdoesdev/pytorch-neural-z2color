@@ -210,6 +210,9 @@ high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
 net, criterion, optimizer = instantiate_net()
 
+low_steer_train = low_steer_train[:1000000000]
+high_steer_train = high_steer_train[:1000000000]
+
 cur_epoch = 0
 if args.resume is not None:
     save_data = torch.load(args.resume)
