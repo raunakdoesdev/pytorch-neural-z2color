@@ -1,6 +1,6 @@
 tmp/*
 tags
 *.pyc
-save
+*save
 logs
 *~
