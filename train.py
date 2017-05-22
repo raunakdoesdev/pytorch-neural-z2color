@@ -210,8 +210,11 @@ high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
 net, criterion, optimizer = instantiate_net()
 
-low_steer_train = low_steer_train[:1000000000]
-high_steer_train = high_steer_train[:1000000000]
+low_steer_train = low_steer_train[:int(0.1*len(low_steer_train))]
+high_steer_train = high_steer_train[:int(0.1*len(high_steer_train))]
+
+low_steer_val = low_steer_val[:int(0.1*len(low_steer_val))]
+high_steer_val = high_steer_val[:int(0.1*len(high_steer_val))]
 
 cur_epoch = 0
 if args.resume is not None:
