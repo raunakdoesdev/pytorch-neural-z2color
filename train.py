@@ -58,7 +58,7 @@ def load_steer_data():
 def instantiate_net():
     net = Z2Color().cuda()
     criterion = nn.MSELoss().cuda()  # define loss function
-    optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
+    optimizer = torch.optim.Adam(net.parameters())
     return net, criterion, optimizer
 
 
