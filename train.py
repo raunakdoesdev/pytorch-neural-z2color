@@ -20,7 +20,7 @@ parser.add_argument('--validate', type=str, metavar='PATH',
 #                     help='Skip the first validation (if restoring an end of epoch save file)')
 parser.add_argument('--resume', type=str, metavar='PATH',
                     help='path to model for training resume')
-parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth'], type=str, nargs='+',
+parser.add_argument('--ignore', default=['reject_run', 'left', 'out1_in2', 'racing', 'Smyth', 'play', 'furtive', 'caffe'], type=str, nargs='+',
                     help='Runs with these labels are ignored')
 parser.add_argument('--require-one', default=[], type=str, nargs='+',
                     help='Mandatory run labels, runs without these labels will be ignored.')
@@ -117,13 +117,13 @@ def pick_data(low_steer_train=None, high_steer_train=None, low_steer_val=None, h
 
 
 def get_camera_data(data):
-    camera_data = torch.FloatTensor().cuda()
-    for c in range(3):
+    listoftensors = []
+    for t in range(net.N_FRAMES):
         for camera in ('left', 'right'):
-            for t in range(net.N_FRAMES):
-                raw_input_data = torch.from_numpy(data[camera][t][:, :, c]).cuda().float()
-                camera_data = torch.cat((camera_data, (raw_input_data.unsqueeze(2) / 255.) - 0.5), 2)  # Adds channel
+            listoftensors.append(torch.from_numpy(data[camera][t]))
 
+    camera_data = torch.cat(listoftensors, 2)
+    camera_data = camera_data.cuda().float()/255. - 0.5
     # Switch dimensions to match neural net
     camera_data = torch.transpose(camera_data, 0, 2)
     camera_data = torch.transpose(camera_data, 1, 2)
@@ -205,10 +205,15 @@ high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
 net = SqueezeNet().cuda()
 criterion = nn.MSELoss().cuda()  # define loss function
-optimizer = torch.optim.Adam(net.parameters(), lr=net.lr)
+optimizer = torch.optim.Adadelta(net.parameters())
 
-drive_net = Z2ColorBatchNorm().cuda()
-drive_net.load_state_dict(torch.load('batch_norm_epoch7')['net'])
+low_steer_train = low_steer_train[:int(0.1*len(low_steer_train))]
+high_steer_train = high_steer_train[:int(0.1*len(high_steer_train))]
+low_steer_val = low_steer_val[:int(0.1*len(low_steer_val))]
+high_steer_val = high_steer_val[:int(0.1*len(high_steer_val))]
+
+drive_net = Z2Color().cuda()
+drive_net.load_state_dict(torch.load('epoch_save_9.0.00410790514151.infer')['net'])
 drive_net.eval() # Set network to evaluate mode
 
 cur_epoch = 0
@@ -255,7 +260,7 @@ else:
     log_file = open('logs/log_file' + str(datetime.datetime.now().isoformat()), 'w')
     log_file.truncate()
     try:
-        for epoch in range(cur_epoch, 10):  # Iterate through epochs
+        for epoch in range(cur_epoch, 1000000):  # Iterate through epochs
             cur_epoch = epoch
             # Training
             notFinished = True  # Checks if finished with dataset
