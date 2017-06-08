@@ -58,7 +58,7 @@ def load_steer_data():
 def instantiate_net():
     net = Z2Color().cuda()
     criterion = nn.MSELoss().cuda()  # define loss function
-    optimizer = torch.optim.SGD(net.parameters(), lr=net.lr, momentum=net.momentum)
+    optimizer = torch.optim.Adam(net.parameters())
     return net, criterion, optimizer
 
 
@@ -122,13 +122,13 @@ def pick_data(low_steer_train=None, high_steer_train=None, low_steer_val=None, h
 
 
 def get_camera_data(data):
-    camera_data = torch.FloatTensor().cuda()
-    for c in range(3):
+    listoftensors = []
+    for t in range(net.N_FRAMES):
         for camera in ('left', 'right'):
-            for t in range(net.N_FRAMES):
-                raw_input_data = torch.from_numpy(data[camera][t][:, :, c]).cuda().float()
-                camera_data = torch.cat((camera_data, (raw_input_data.unsqueeze(2) / 255.) - 0.5), 2)  # Adds channel
+            listoftensors.append(torch.from_numpy(data[camera][t]))
 
+    camera_data = torch.cat(listoftensors, 2)
+    camera_data = camera_data.cuda().float()/255. - 0.5
     # Switch dimensions to match neural net
     camera_data = torch.transpose(camera_data, 0, 2)
     camera_data = torch.transpose(camera_data, 1, 2)
@@ -209,6 +209,12 @@ low_steer_val = low_steer[int(0.9*len(low_steer)):]
 high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
 net, criterion, optimizer = instantiate_net()
+
+low_steer_train = low_steer_train[:int(0.1*len(low_steer_train))]
+high_steer_train = high_steer_train[:int(0.1*len(high_steer_train))]
+
+low_steer_val = low_steer_val[:int(0.1*len(low_steer_val))]
+high_steer_val = high_steer_val[:int(0.1*len(high_steer_val))]
 
 cur_epoch = 0
 if args.resume is not None:
