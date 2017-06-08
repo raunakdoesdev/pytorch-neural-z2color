@@ -212,17 +212,18 @@ high_steer_val = high_steer[int(0.9*len(high_steer)):]
 
 net, criterion, optimizer = instantiate_net()
 
-low_steer_train = low_steer_train[:int(0.1*len(low_steer_train))]
-high_steer_train = high_steer_train[:int(0.1*len(high_steer_train))]
-low_steer_val = low_steer_val[:int(0.1*len(low_steer_val))]
-high_steer_val = high_steer_val[:int(0.1*len(high_steer_val))]
-
 cur_epoch = 0
 if args.resume is not None:
     save_data = torch.load(args.resume)
     net.load_state_dict(save_data['net'])
     optimizer.load_state_dict(save_data['optim'])
     cur_epoch = save_data['epoch']
+    
+    # load shuffled datasets
+    low_steer_train = save_data['lst']
+    high_steer_train = save_data['hst']
+    low_steer_val = save_data['lsv']
+    high_steer_val = save_data['hsv']
 if args.validate is not None:
     save_data = torch.load(args.validate)
     net.load_state_dict(save_data['net'])
@@ -298,13 +299,6 @@ else:
                     log_file.flush()
                     sum = 0
                     sum_counter = 0
-
-                if batch_counter % args.saverate == 0 and batch_counter != 0:
-                    low, high = pick_data()
-                    save_data = {'low_ctr': low, 'high_ctr': high, 'net': net.state_dict(),
-                                 'optim': optimizer.state_dict(), 'epoch': cur_epoch}
-                    torch.save(save_data, 'save/progress_save_' + str(epoch) + '-' + str(batch_counter))
-
             sum = 0
             count = 0
             notFinished = True  # Checks if finished with dataset
@@ -331,7 +325,10 @@ else:
             log_file.write('\nFinish cross validation! Average Validation Error = ' + str(sum / count))
             log_file.flush()
             save_data = {'low_ctr': 0, 'high_ctr': 0, 'net': net.state_dict(),
-                         'optim': optimizer.state_dict(), 'epoch': cur_epoch}
+                         'optim': optimizer.state_dict(), 'epoch': cur_epoch,
+                         'lst':low_steer_train, 'hst':high_steer_train,
+                         'lsv':low_steer_val,'hsv':high_steer_val
+                        }
             torch.save(save_data, 'save/epoch_save_' + str(cur_epoch) + '.' + str(sum / count))
     except Exception as e:  # In case of any exception or error, save the model.
         log_file.write('\nError Recieved while training. Saved model and terminated code:\n' + str(e))
