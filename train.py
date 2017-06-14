@@ -338,6 +338,6 @@ else:
         save_data = {'low_ctr': low, 'high_ctr': high, 'net': net.state_dict(),
                      'optim': optimizer.state_dict(), 'epoch': cur_epoch}
         torch.save(save_data, 'interrupt_save')
-        print('\nError Recieved, Saved model!')
+        print('\nError Recieved, Saved model! ' + str(e))
     finally:
         log_file.close()
