@@ -331,6 +331,8 @@ else:
                          'lst':low_steer_train, 'hst':high_steer_train,
                          'lsv':low_steer_val,'hsv':high_steer_val
                         }
+            if not os.path.exists('save'):
+                os.makedirs('save')
             torch.save(save_data, 'save/epoch_save_' + str(cur_epoch) + '.' + str(sum / count))
     except Exception as e:  # In case of any exception or error, save the model.
         log_file.write('\nError Recieved while training. Saved model and terminated code:\n' + str(e))
