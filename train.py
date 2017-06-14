@@ -253,6 +253,8 @@ if args.validate is not None:
         print('Average Loss: ' + str(sum / count))
 else:
     print(net)
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
     log_file = open('logs/log_file' + str(datetime.datetime.now().isoformat()), 'w')
     log_file.truncate()
     try:
