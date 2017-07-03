@@ -29,11 +29,11 @@ args = parser.parse_args()
 
 start_ctrl_low = 0
 start_ctrl_high = 0
+
 if args.resume is not None:
     save_data = torch.load(args.resume)
     start_ctrl_low = save_data['low_ctr']
     start_ctrl_high = save_data['high_ctr']
-
 
 def load_full_run_data():
     pb = ProgressBar(1 + len(Segment_Data['run_codes']))
@@ -206,9 +206,11 @@ low_steer, high_steer = load_steer_data()
 random.shuffle(low_steer)
 random.shuffle(high_steer)
 low_steer_train = low_steer[:int(0.9*len(low_steer))]
-high_steer_train = high_steer[:int(0.9*len(high_steer))]
 low_steer_val = low_steer[int(0.9*len(low_steer)):]
+del low_steer
+high_steer_train = high_steer[:int(0.9*len(high_steer))]
 high_steer_val = high_steer[int(0.9*len(high_steer)):]
+del high_steer
 
 net, criterion, optimizer = instantiate_net()
 
@@ -242,15 +244,25 @@ if args.validate is not None:
 
         # Run neural net + Calculate Loss
         outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
-        print(outputs)
-        print(batch_labels)
+
+        # Break output into sections (only train on motor and steer values)
+        outputs = outputs.chunk(3, dim=1)
+        outputs = torch.cat([outputs[0], outputs[1]], 1)
 
         loss = criterion(outputs, Variable(batch_labels))
         count += 1
         sum += loss.data[0]
 
         # print('Output:\n' + str(outputs) + '\nLabels:\n' + str(batch_labels))
-        print('Average Loss: ' + str(sum / count))
+        # print('Average Loss: ' + str(sum / count))
+    print('THE LOSS WAS ' + str(sum/count))
+    print('THE LOSS WAS ' + str(sum/count))
+    print('THE LOSS WAS ' + str(sum/count))
+    print('THE LOSS WAS ' + str(sum/count))
+    print('THE LOSS WAS ' + str(sum/count))
+    print('THE LOSS WAS ' + str(sum/count))
+    print('THE LOSS WAS ' + str(sum/count))
+    print('THE LOSS WAS ' + str(sum/count))
 else:
     print(net)
     if not os.path.exists('logs'):
@@ -282,6 +294,11 @@ else:
 
                 # Run neural net + Calculate Loss
                 outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+
+                # Break output into sections (only train on motor and steer values)
+                outputs = outputs.chunk(3, dim=1)
+                outputs = torch.cat([outputs[0], outputs[1]], 1)
+
                 loss = criterion(outputs, Variable(batch_labels))
 
                 # Backprop
@@ -315,6 +332,11 @@ else:
 
                 # Run neural net + Calculate Loss
                 outputs = net(Variable(batch_input), Variable(batch_metadata)).cuda()
+
+                # Break output into sections (only train on motor and steer values)
+                outputs = outputs.chunk(3, dim=1)
+                outputs = torch.cat([outputs[0], outputs[1]], 1)
+
                 loss = criterion(outputs, Variable(batch_labels))
                 count += 1
                 sum += loss.data[0]
